@@ -1,16 +1,16 @@
 {
-  "name": "phalakam",
+  "name": "nivita",
   "version": "1.0.0",
+  "description": "Lightweight Milanote clone - Visual workspace for creative projects with infinite canvas",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
-  "keywords": [],
+  "keywords": ["milanote", "visual-workspace", "canvas", "mind-map", "creative-tools"],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
     "@ant-design/nextjs-registry": "^1.2.0",

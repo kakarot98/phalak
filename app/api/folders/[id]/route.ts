@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// GET /api/boards/:id - Get single board with cards
+// GET /api/folders/:id - Get folder with its contents (subfolders and boards)
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -9,11 +9,22 @@ export async function GET(
   try {
     const { id } = await params
 
-    const board = await prisma.board.findUnique({
+    const folder = await prisma.folder.findUnique({
       where: { id },
       include: {
-        cards: {
-          orderBy: { zIndex: 'asc' }, // Order by z-index for layering
+        subFolders: {
+          orderBy: { updatedAt: 'desc' },
+          include: {
+            _count: {
+              select: {
+                boards: true,
+                subFolders: true,
+              },
+            },
+          },
+        },
+        boards: {
+          orderBy: { updatedAt: 'desc' },
         },
         project: {
           select: {
@@ -21,7 +32,7 @@ export async function GET(
             name: true,
           },
         },
-        folder: {
+        parentFolder: {
           select: {
             id: true,
             name: true,
@@ -30,24 +41,24 @@ export async function GET(
       },
     })
 
-    if (!board) {
+    if (!folder) {
       return NextResponse.json(
-        { error: 'Board not found' },
+        { error: 'Folder not found' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json(board)
+    return NextResponse.json(folder)
   } catch (error) {
-    console.error('Error fetching board:', error)
+    console.error('Error fetching folder:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch board' },
+      { error: 'Failed to fetch folder' },
       { status: 500 }
     )
   }
 }
 
-// PATCH /api/boards/:id - Update board
+// PATCH /api/folders/:id - Update folder
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -55,12 +66,12 @@ export async function PATCH(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, description } = body
+    const { name, description, parentFolderId } = body
 
     // Validate at least one field is provided
-    if (!name && description === undefined) {
+    if (!name && description === undefined && parentFolderId === undefined) {
       return NextResponse.json(
-        { error: 'At least one field (name or description) must be provided' },
+        { error: 'At least one field must be provided' },
         { status: 400 }
       )
     }
@@ -73,31 +84,32 @@ export async function PATCH(
       )
     }
 
-    const board = await prisma.board.update({
+    const folder = await prisma.folder.update({
       where: { id },
       data: {
         ...(name !== undefined && { name: name.trim() }),
         ...(description !== undefined && { description: description?.trim() || null }),
+        ...(parentFolderId !== undefined && { parentFolderId }),
       },
     })
 
-    return NextResponse.json(board)
+    return NextResponse.json(folder)
   } catch (error: any) {
     if (error.code === 'P2025') {
       return NextResponse.json(
-        { error: 'Board not found' },
+        { error: 'Folder not found' },
         { status: 404 }
       )
     }
-    console.error('Error updating board:', error)
+    console.error('Error updating folder:', error)
     return NextResponse.json(
-      { error: 'Failed to update board' },
+      { error: 'Failed to update folder' },
       { status: 500 }
     )
   }
 }
 
-// DELETE /api/boards/:id - Delete board (cascades to cards)
+// DELETE /api/folders/:id - Delete folder (cascades to subfolders and boards)
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -105,7 +117,7 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    await prisma.board.delete({
+    await prisma.folder.delete({
       where: { id },
     })
 
@@ -113,13 +125,13 @@ export async function DELETE(
   } catch (error: any) {
     if (error.code === 'P2025') {
       return NextResponse.json(
-        { error: 'Board not found' },
+        { error: 'Folder not found' },
         { status: 404 }
       )
     }
-    console.error('Error deleting board:', error)
+    console.error('Error deleting folder:', error)
     return NextResponse.json(
-      { error: 'Failed to delete board' },
+      { error: 'Failed to delete folder' },
       { status: 500 }
     )
   }

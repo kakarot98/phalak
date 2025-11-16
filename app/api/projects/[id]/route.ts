@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// GET /api/workspaces/:id - Get single workspace with boards
+// GET /api/projects/:id - Get single project with folders and boards
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -9,33 +9,46 @@ export async function GET(
   try {
     const { id } = await params
 
-    const workspace = await prisma.workspace.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id },
       include: {
+        folders: {
+          where: { parentFolderId: null }, // Only root-level folders
+          orderBy: { updatedAt: 'desc' },
+          include: {
+            _count: {
+              select: {
+                boards: true,
+                subFolders: true,
+              },
+            },
+          },
+        },
         boards: {
+          where: { folderId: null }, // Only boards at project root
           orderBy: { updatedAt: 'desc' },
         },
       },
     })
 
-    if (!workspace) {
+    if (!project) {
       return NextResponse.json(
-        { error: 'Workspace not found' },
+        { error: 'Project not found' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json(workspace)
+    return NextResponse.json(project)
   } catch (error) {
-    console.error('Error fetching workspace:', error)
+    console.error('Error fetching project:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch workspace' },
+      { error: 'Failed to fetch project' },
       { status: 500 }
     )
   }
 }
 
-// PATCH /api/workspaces/:id - Update workspace
+// PATCH /api/projects/:id - Update project
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -61,7 +74,7 @@ export async function PATCH(
       )
     }
 
-    const workspace = await prisma.workspace.update({
+    const project = await prisma.project.update({
       where: { id },
       data: {
         ...(name !== undefined && { name: name.trim() }),
@@ -69,23 +82,23 @@ export async function PATCH(
       },
     })
 
-    return NextResponse.json(workspace)
+    return NextResponse.json(project)
   } catch (error: any) {
     if (error.code === 'P2025') {
       return NextResponse.json(
-        { error: 'Workspace not found' },
+        { error: 'Project not found' },
         { status: 404 }
       )
     }
-    console.error('Error updating workspace:', error)
+    console.error('Error updating project:', error)
     return NextResponse.json(
-      { error: 'Failed to update workspace' },
+      { error: 'Failed to update project' },
       { status: 500 }
     )
   }
 }
 
-// DELETE /api/workspaces/:id - Delete workspace (cascades to boards and notes)
+// DELETE /api/projects/:id - Delete project (cascades to folders, boards, and cards)
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -93,7 +106,7 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    await prisma.workspace.delete({
+    await prisma.project.delete({
       where: { id },
     })
 
@@ -101,13 +114,13 @@ export async function DELETE(
   } catch (error: any) {
     if (error.code === 'P2025') {
       return NextResponse.json(
-        { error: 'Workspace not found' },
+        { error: 'Project not found' },
         { status: 404 }
       )
     }
-    console.error('Error deleting workspace:', error)
+    console.error('Error deleting project:', error)
     return NextResponse.json(
-      { error: 'Failed to delete workspace' },
+      { error: 'Failed to delete project' },
       { status: 500 }
     )
   }

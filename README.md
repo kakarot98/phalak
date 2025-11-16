@@ -1,20 +1,23 @@
-# Phalakam
+# Nivita
 
-> **Lightweight Milanote clone** - A visual workspace for creative projects, storytelling, and spatial organization.
+> **Lightweight Milanote clone** - A visual workspace for creative projects, storytelling, and spatial organization using infinite canvas "phalakams".
 
 ![Status](https://img.shields.io/badge/status-in%20development-yellow)
-![Session](https://img.shields.io/badge/session-1%2F10%20complete-blue)
+![Session](https://img.shields.io/badge/session-2%2F10%20complete-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
 ## 🎯 Vision
 
-Phalakam is an open-source, self-hostable alternative to Milanote, designed for:
+Nivita is an open-source, self-hostable alternative to Milanote, designed for:
 - **Story planning** and character development
 - **Visual moodboards** and concept art collections
 - **Project planning** with spatial organization
 - **Storyboarding** and narrative structure mapping
+
+### What's a Phalakam?
+A **phalakam** is an infinite canvas board where you can arrange cards spatially - like a digital corkboard for your ideas.
 
 ---
 
@@ -27,8 +30,15 @@ Phalakam is an open-source, self-hostable alternative to Milanote, designed for:
 - [x] TypeScript type system
 - [x] Prisma + SQLite database
 
+### ✅ Session 2: Infinite Canvas & Restructuring (Complete)
+- [x] Infinite canvas with pan/zoom (@dnd-kit)
+- [x] Drag-and-drop card positioning
+- [x] Projects → Folders → Phalakams hierarchy
+- [x] Infinitely nested folder support
+- [x] Complete API layer (projects, folders, boards/cards)
+- [x] Breadcrumb navigation with dynamic paths
+
 ### 🔜 Upcoming Sessions
-- [ ] **Session 2:** Infinite canvas with drag-and-drop
 - [ ] **Session 3:** Rich text editing (Slate)
 - [ ] **Session 4:** Image uploads
 - [ ] **Session 5:** Todo and Link cards
@@ -52,8 +62,8 @@ See [ROADMAP.md](docs/ROADMAP.md) for full development plan.
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/phalakam.git
-cd phalakam
+git clone https://github.com/YOUR_USERNAME/nivita.git
+cd nivita
 
 # Install dependencies
 npm install
@@ -78,11 +88,13 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 npx prisma studio
 ```
 
-Navigate to `http://localhost:5555` to see:
-- **Film Production Project** workspace
-- **Character Development** board with 3 character cards
-- **Story Structure** board with 3-act structure
-- **Visual Reference** board with art direction notes
+Navigate to `http://localhost:5555` to see the hierarchical structure:
+- **Film Production Project** (root project)
+  - **Character Design** folder → Main Characters phalakam, Character Arcs phalakam
+  - **Story Development** folder
+    - **Act Structure** sub-folder → Three Act Breakdown phalakam
+    - **Themes & Messages** phalakam
+  - **Visual Reference** phalakam (at project root)
 
 ---
 
@@ -94,7 +106,7 @@ Navigate to `http://localhost:5555` to see:
 | **Language** | TypeScript |
 | **Database** | Prisma + SQLite (→ PostgreSQL later) |
 | **UI Library** | Ant Design |
-| **Drag & Drop** | @dnd-kit (upcoming) |
+| **Drag & Drop** | @dnd-kit ✅ |
 | **Rich Text** | Slate (upcoming) |
 | **File Storage** | Local filesystem (→ Cloud later) |
 
@@ -103,25 +115,32 @@ Navigate to `http://localhost:5555` to see:
 ## 📁 Project Structure
 
 ```
-phalakam/
-├── app/                    # Next.js App Router
-│   ├── api/               # Backend API routes
-│   ├── boards/[id]/       # Board detail pages
-│   └── workspaces/[id]/   # Workspace detail pages
-├── components/            # React components
-│   └── layout/           # Layout components
-├── types/                # TypeScript type definitions
-│   └── card.ts          # Card type system
-├── lib/                  # Utilities
-│   └── prisma.ts        # Database client
-├── prisma/              # Database
-│   ├── schema.prisma    # Database schema
-│   ├── seed.ts          # Seed data
-│   └── migrations/      # Migration history
-├── docs/                # Documentation
-│   ├── ROADMAP.md       # Full development plan
-│   └── SESSION-*.md     # Session notes
-└── theme/              # Ant Design theme
+nivita/
+├── app/                      # Next.js App Router
+│   ├── api/                 # Backend API routes
+│   │   ├── projects/        # Project CRUD endpoints
+│   │   ├── folders/         # Folder CRUD endpoints
+│   │   ├── boards/          # Board endpoints
+│   │   └── cards/           # Card update endpoints
+│   ├── projects/[id]/       # Project detail pages
+│   ├── folders/[id]/        # Folder navigation pages
+│   └── boards/[id]/         # Phalakam (infinite canvas) pages
+├── components/              # React components
+│   ├── layout/             # Layout components
+│   ├── canvas/             # Canvas components (BoardCanvas, CanvasCard)
+│   └── cards/              # Card display components (TextCard, etc.)
+├── types/                  # TypeScript type definitions
+│   └── card.ts            # Card type system
+├── lib/                    # Utilities
+│   └── prisma.ts          # Database client
+├── prisma/                # Database
+│   ├── schema.prisma      # Database schema (Project→Folder→Board→Card)
+│   ├── seed.ts            # Hierarchical seed data
+│   └── migrations/        # Migration history
+├── docs/                  # Documentation
+│   ├── ROADMAP.md         # Full development plan
+│   └── SESSION-*.md       # Session notes
+└── theme/                # Ant Design theme
     └── themeConfig.ts
 ```
 
@@ -203,15 +222,46 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ## 🔒 Database
 
-### Schema Overview
+### Hierarchical Schema
 
 ```prisma
-model Card {
-  id        String   @id
-  boardId   String
-  type      String   // TEXT, TODO, IMAGE, LINK, COLUMN, SUBBOARD
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  folders     Folder[]
+  boards      Board[]
+}
 
-  positionX Float
+model Folder {
+  id             String   @id @default(cuid())
+  name           String
+  projectId      String
+  parentFolderId String?           // Enables infinite nesting
+
+  project        Project  @relation(fields: [projectId])
+  parentFolder   Folder?  @relation("SubFolders", fields: [parentFolderId])
+  subFolders     Folder[] @relation("SubFolders")
+  boards         Board[]
+}
+
+model Board {
+  id          String   @id @default(cuid())
+  name        String
+  projectId   String
+  folderId    String?              // Optional: can be at project root
+
+  project     Project  @relation(fields: [projectId])
+  folder      Folder?  @relation(fields: [folderId])
+  cards       Card[]
+}
+
+model Card {
+  id        String  @id @default(cuid())
+  boardId   String
+  type      String  // TEXT, TODO, IMAGE, LINK, COLUMN, SUBBOARD
+
+  positionX Float   // Infinite canvas positioning
   positionY Float
   width     Float
   height    Float?
@@ -219,18 +269,19 @@ model Card {
 
   color     String?
   title     String?
-  content   String?  // JSON
+  content   String? // JSON
 
-  linkedBoardId String?  // For SUBBOARD type
+  board            Board   @relation(fields: [boardId])
+  linkedBoardId    String? // For SUBBOARD type
 }
 ```
 
 ### Seed Data
 
-The database comes pre-seeded with a **Film Production Project** example:
-- Character Development board
-- Story Structure board
-- Visual Reference board
+The database comes pre-seeded with a hierarchical **Film Production Project** example:
+- **Character Design** folder with character phalakams
+- **Story Development** folder with nested **Act Structure** sub-folder
+- **Visual Reference** phalakam at project root
 
 Reset and re-seed anytime:
 ```bash
@@ -241,19 +292,22 @@ npx prisma migrate reset
 
 ## 🗺️ Current Status
 
-**Phase:** Session 1 of 10 complete
+**Phase:** Session 2 of 10 complete
 
 **What's Working:**
-- ✅ Card-based database schema
+- ✅ Hierarchical database (Projects → Folders → Phalakams → Cards)
+- ✅ Infinite folder nesting with self-referencing relations
+- ✅ Complete REST API layer (CRUD for all models)
+- ✅ Infinite canvas with pan/zoom (@dnd-kit)
+- ✅ Drag-and-drop card positioning with optimistic updates
+- ✅ Dynamic breadcrumb navigation
 - ✅ Type system for all 6 card types
-- ✅ Prisma migrations
-- ✅ Seed data with realistic content
-- ✅ Basic API routes (partial)
+- ✅ Seed data with realistic hierarchical structure
 
-**Next Up (Session 2):**
-- Infinite canvas with pan/zoom
-- Drag-and-drop positioning
-- Canvas-based board view
+**Next Up (Session 3):**
+- Rich text editing with Slate
+- Enhanced text card formatting
+- Improved content editing experience
 
 ---
 

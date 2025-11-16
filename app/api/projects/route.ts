@@ -1,23 +1,31 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// GET /api/workspaces - List all workspaces
+// GET /api/projects - List all projects
 export async function GET() {
   try {
-    const workspaces = await prisma.workspace.findMany({
+    const projects = await prisma.project.findMany({
       orderBy: { updatedAt: 'desc' },
+      include: {
+        _count: {
+          select: {
+            folders: true,
+            boards: true,
+          },
+        },
+      },
     })
-    return NextResponse.json(workspaces)
+    return NextResponse.json(projects)
   } catch (error) {
-    console.error('Error fetching workspaces:', error)
+    console.error('Error fetching projects:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch workspaces' },
+      { error: 'Failed to fetch projects' },
       { status: 500 }
     )
   }
 }
 
-// POST /api/workspaces - Create new workspace
+// POST /api/projects - Create new project
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -30,18 +38,18 @@ export async function POST(request: Request) {
       )
     }
 
-    const workspace = await prisma.workspace.create({
+    const project = await prisma.project.create({
       data: {
         name: name.trim(),
         description: description?.trim() || null,
       },
     })
 
-    return NextResponse.json(workspace, { status: 201 })
+    return NextResponse.json(project, { status: 201 })
   } catch (error) {
-    console.error('Error creating workspace:', error)
+    console.error('Error creating project:', error)
     return NextResponse.json(
-      { error: 'Failed to create workspace' },
+      { error: 'Failed to create project' },
       { status: 500 }
     )
   }

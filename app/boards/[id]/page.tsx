@@ -29,8 +29,17 @@ interface Board {
   id: string
   name: string
   description: string | null
-  workspaceId: string
+  projectId: string
+  folderId: string | null
   cards: Card[]
+  project: {
+    id: string
+    name: string
+  }
+  folder: {
+    id: string
+    name: string
+  } | null
 }
 
 export default function BoardPage() {
@@ -178,9 +187,9 @@ export default function BoardPage() {
         justifyContent: 'center',
         background: '#f7f5f2'
       }}>
-        <Empty description="Board not found">
+        <Empty description="Phalakam not found">
           <Link href="/">
-            <Button type="primary">Back to Workspaces</Button>
+            <Button type="primary">Back to Projects</Button>
           </Link>
         </Empty>
       </div>
@@ -205,11 +214,17 @@ export default function BoardPage() {
           <Breadcrumb
             items={[
               {
-                title: <Link href="/"><HomeOutlined /> Home</Link>,
+                title: <Link href="/"><HomeOutlined /> Projects</Link>,
               },
               {
-                title: <Link href={`/workspaces/${board.workspaceId}`}><FolderOutlined /> Workspace</Link>,
+                title: <Link href={`/projects/${board.project.id}`}>{board.project.name}</Link>,
               },
+              ...(board.folder
+                ? [{
+                    title: <Link href={`/folders/${board.folder.id}`}><FolderOutlined /> {board.folder.name}</Link>,
+                  }]
+                : []
+              ),
               {
                 title: board.name,
               },

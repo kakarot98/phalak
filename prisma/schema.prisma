@@ -16,10 +16,10 @@ model User {
   name       String?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
-  workspaces Workspace[]
+  projects   Project[]
 }
 
-model Workspace {
+model Project {
   id          String   @id @default(cuid())
   name        String
   description String?
@@ -30,23 +30,45 @@ model Workspace {
   userId      String?
   user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  folders     Folder[]
   boards      Board[]
+}
+
+model Folder {
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  projectId      String
+  parentFolderId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parentFolder   Folder?  @relation("SubFolders", fields: [parentFolderId], references: [id], onDelete: Cascade)
+  subFolders     Folder[] @relation("SubFolders")
+  boards         Board[]
+
+  @@index([projectId])
+  @@index([parentFolderId])
 }
 
 model Board {
   id          String   @id @default(cuid())
-  workspaceId String
+  projectId   String
+  folderId    String?
   name        String
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder       Folder?      @relation(fields: [folderId], references: [id], onDelete: Cascade)
   cards        Card[]
   connections  Connection[]
   subBoardCards Card[]      @relation("SubBoards")
 
-  @@index([workspaceId])
+  @@index([projectId])
+  @@index([folderId])
 }
 
 enum CardType {
