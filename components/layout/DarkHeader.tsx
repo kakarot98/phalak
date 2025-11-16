@@ -39,10 +39,11 @@ export default function DarkHeader() {
       {/* Logo */}
       <div
         style={{
-          fontSize: 28,
-          fontWeight: 600,
+          fontSize: 40,
+          fontWeight: 800,
           color: '#ffb4a2',
           fontFamily: 'Inter, sans-serif',
+          textTransform: 'uppercase'
         }}
       >
         Nivita
