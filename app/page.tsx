@@ -10,7 +10,7 @@ import ErrorBoundary from '@/components/error/ErrorBoundary'
 import EntityModal from '@/components/ui/EntityModal'
 import { useFetchEntity } from '@/hooks/useFetchEntity'
 import { useCreateEntity } from '@/hooks/useCreateEntity'
-import { useModalState } from '@/hooks/useModalState'
+import { useModalWithType } from '@/hooks/useModalState'
 import type { Project } from '@/types/entities'
 import { TYPOGRAPHY, COLORS } from '@/theme'
 
@@ -22,15 +22,25 @@ export default function ProjectsPage() {
     { errorMessage: 'Failed to fetch projects' }
   )
 
-  const { loading: createLoading, create } = useCreateEntity('/api/projects', {
+  const { loading: createProjectLoading, create: createProject } = useCreateEntity('/api/projects', {
     successMessage: 'Project created successfully',
     onSuccess: refetch,
   })
 
-  const modal = useModalState()
+  const { loading: createPhalakLoading, create: createPhalak } = useCreateEntity('/api/boards', {
+    successMessage: 'Phalak created successfully',
+    onSuccess: refetch,
+  })
 
-  const handleCreate = async (values: { name: string; description?: string }) => {
-    await create(values)
+  const modal = useModalWithType(['project', 'phalak'] as const, 'project')
+
+  const handleCreate = async (values: { name: string; description?: string; projectId?: string }) => {
+    if (modal.type === 'project') {
+      await createProject(values)
+    } else {
+      // For phalak, projectId is required
+      await createPhalak(values)
+    }
     modal.close()
   }
 
@@ -50,8 +60,8 @@ export default function ProjectsPage() {
       <AppShell
         heading="Your Workspace"
         actions={[
-          { label: '+ New Projects', onClick: modal.open, type: 'default' },
-          { label: '+ New Phalaks', onClick: () => {}, type: 'default' },
+          { label: '+ New Projects', onClick: () => modal.open('project'), type: 'default' },
+          { label: '+ New Phalaks', onClick: () => modal.open('phalak'), type: 'default' },
         ]}
       >
         {/* Tabs */}
@@ -71,7 +81,7 @@ export default function ProjectsPage() {
             description="No projects yet"
             style={{ padding: '48px' }}
           >
-            <Button icon={<PlusOutlined />} onClick={modal.open}>
+            <Button icon={<PlusOutlined />} onClick={() => modal.open('project')}>
               Create Your First Project
             </Button>
           </Empty>
@@ -95,14 +105,29 @@ export default function ProjectsPage() {
 
         <EntityModal
           open={modal.isOpen}
-          title="Create Project"
-          loading={createLoading}
+          title={modal.type === 'project' ? 'Create Project' : 'Create Phalak'}
+          loading={modal.type === 'project' ? createProjectLoading : createPhalakLoading}
           onCancel={modal.close}
           onSubmit={handleCreate}
-          fields={[
-            { name: 'name', label: 'Name', required: true, placeholder: 'Film Production' },
-            { name: 'description', label: 'Description', type: 'textarea', placeholder: 'Optional description' },
-          ]}
+          fields={
+            modal.type === 'project'
+              ? [
+                  { name: 'name', label: 'Name', required: true, placeholder: 'Film Production' },
+                  { name: 'description', label: 'Description', type: 'textarea', placeholder: 'Optional description' },
+                ]
+              : [
+                  { name: 'name', label: 'Name', required: true, placeholder: 'Phalak name' },
+                  { name: 'description', label: 'Description', type: 'textarea', placeholder: 'Optional description' },
+                  {
+                    name: 'projectId',
+                    label: 'Project',
+                    required: true,
+                    type: 'select',
+                    placeholder: 'Select a project',
+                    options: projects?.map((p) => ({ label: p.name, value: p.id })) || [],
+                  },
+                ]
+          }
         />
       </AppShell>
     </ErrorBoundary>

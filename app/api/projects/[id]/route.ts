@@ -6,9 +6,12 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const startTime = performance.now()
+
   try {
     const { id } = await params
 
+    const queryStart = performance.now()
     const project = await prisma.project.findUnique({
       where: { id },
       include: {
@@ -30,6 +33,7 @@ export async function GET(
         },
       },
     })
+    const queryEnd = performance.now()
 
     if (!project) {
       return NextResponse.json(
@@ -37,6 +41,14 @@ export async function GET(
         { status: 404 }
       )
     }
+
+    const totalTime = performance.now() - startTime
+    console.log(`[Performance] GET /api/projects/${id}:`, {
+      queryTime: `${(queryEnd - queryStart).toFixed(2)}ms`,
+      totalTime: `${totalTime.toFixed(2)}ms`,
+      folders: project.folders.length,
+      boards: project.boards.length,
+    })
 
     return NextResponse.json(project)
   } catch (error) {

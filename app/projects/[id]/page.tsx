@@ -52,12 +52,28 @@ export default function ProjectPage() {
   }, [projectId])
 
   const fetchProject = async () => {
+    const startTime = performance.now()
+
     try {
       setFetchLoading(true)
+      const fetchStart = performance.now()
       const res = await fetch(`/api/projects/${projectId}`)
+      const fetchEnd = performance.now()
+
       if (!res.ok) throw new Error('Failed to fetch project')
+
+      const parseStart = performance.now()
       const data = await res.json()
+      const parseEnd = performance.now()
+
       setProject(data)
+
+      const totalTime = performance.now() - startTime
+      console.log(`[Client Performance] Project ${projectId}:`, {
+        fetchTime: `${(fetchEnd - fetchStart).toFixed(2)}ms`,
+        parseTime: `${(parseEnd - parseStart).toFixed(2)}ms`,
+        totalTime: `${totalTime.toFixed(2)}ms`,
+      })
     } catch (error) {
       message.error('Failed to fetch project')
       console.error(error)

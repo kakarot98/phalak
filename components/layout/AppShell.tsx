@@ -1,6 +1,7 @@
 'use client'
 
 import { Layout, Breadcrumb, Button, Space } from 'antd'
+import type { BreadcrumbProps } from 'antd'
 import { ReactNode } from 'react'
 import DarkHeader from './DarkHeader'
 import Sidebar from './Sidebar'
@@ -8,15 +9,10 @@ import SearchBar from '../ui/SearchBar'
 
 const { Content } = Layout
 
-export interface BreadcrumbItem {
-  title: ReactNode
-  href?: string
-}
-
 interface AppShellProps {
   children: ReactNode
   heading?: string
-  breadcrumbs?: BreadcrumbItem[]
+  breadcrumbs?: BreadcrumbProps['items']
   actions?: {
     label: string
     icon?: ReactNode
@@ -60,39 +56,26 @@ export default function AppShell({
             {/* Search Bar */}
             {showSearch && <SearchBar />}
 
-            {/* Heading and Actions */}
+            {/* Heading and Actions Row */}
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginTop: breadcrumbs ? 0 : 24,
+                marginTop: 24,
               }}
             >
-              <div>
-                {/* Breadcrumbs */}
-                {breadcrumbs && breadcrumbs.length > 0 && (
-                  <Breadcrumb
-                    items={breadcrumbs}
-                    style={{
-                      marginBottom: 12,
-                      fontSize: 13,
-                    }}
-                  />
-                )}
-
-                {/* Heading */}
-                <h1
-                  style={{
-                    fontSize: 32,
-                    fontWeight: 600,
-                    fontFamily: 'Inter, sans-serif',
-                    margin: 0,
-                  }}
-                >
-                  {heading}
-                </h1>
-              </div>
+              {/* Heading */}
+              <h1
+                style={{
+                  fontSize: 32,
+                  fontWeight: 600,
+                  fontFamily: 'Inter, sans-serif',
+                  margin: 0,
+                }}
+              >
+                {heading}
+              </h1>
 
               {/* Action Buttons */}
               {actions && actions.length > 0 && (
@@ -118,6 +101,17 @@ export default function AppShell({
                 </Space>
               )}
             </div>
+
+            {/* Breadcrumbs - Below heading/actions */}
+            {breadcrumbs && breadcrumbs.length > 0 && (
+              <Breadcrumb
+                items={breadcrumbs}
+                style={{
+                  marginTop: 12,
+                  fontSize: 13,
+                }}
+              />
+            )}
 
             {/* Content */}
             {children}

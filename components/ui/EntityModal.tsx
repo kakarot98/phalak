@@ -1,6 +1,6 @@
 'use client'
 
-import { Modal, Form, Input, Button, Space } from 'antd'
+import { Modal, Form, Input, Button, Space, Select } from 'antd'
 import { ReactNode } from 'react'
 
 const { TextArea } = Input
@@ -9,9 +9,10 @@ export interface EntityModalField {
   name: string
   label: string
   required?: boolean
-  type?: 'input' | 'textarea'
+  type?: 'input' | 'textarea' | 'select'
   placeholder?: string
   rows?: number
+  options?: { label: string; value: string | number }[]
 }
 
 interface EntityModalProps {
@@ -74,7 +75,7 @@ export default function EntityModal({
       open={open}
       onCancel={handleCancel}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form
         form={form}
@@ -90,7 +91,7 @@ export default function EntityModal({
             rules={[
               {
                 required: field.required,
-                message: `Please enter ${field.label.toLowerCase()}`,
+                message: `Please ${field.type === 'select' ? 'select' : 'enter'} ${field.label.toLowerCase()}`,
               },
             ]}
           >
@@ -98,6 +99,11 @@ export default function EntityModal({
               <TextArea
                 rows={field.rows || 3}
                 placeholder={field.placeholder}
+              />
+            ) : field.type === 'select' ? (
+              <Select
+                placeholder={field.placeholder}
+                options={field.options}
               />
             ) : (
               <Input placeholder={field.placeholder} />
