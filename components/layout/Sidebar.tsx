@@ -63,7 +63,7 @@ export default function Sidebar() {
 
   return (
     <Sider
-      width={399}
+      width={280}
       style={{
         background: '#ffffff',
         borderRight: '1px solid #f0f0f0',
@@ -76,9 +76,9 @@ export default function Sidebar() {
         selectedKeys={[pathname]}
         onClick={handleMenuClick}
         style={{
-          marginTop: 44,
+          marginTop: 24,
           border: 'none',
-          fontSize: 24,
+          fontSize: 16,
           fontFamily: 'Inter, sans-serif',
         }}
         items={menuItems}

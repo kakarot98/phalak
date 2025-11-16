@@ -1,84 +1,125 @@
 'use client'
 
-import { Card } from 'antd'
-import { FolderOutlined } from '@ant-design/icons'
-import Link from 'next/link'
+import { Card, Badge } from 'antd'
+import { FolderOutlined, FileOutlined } from '@ant-design/icons'
 
 interface ProjectCardProps {
   id: string
   name: string
-  boardCount?: number
+  description?: string | null
+  phalakCount?: number
   coverImage?: string | null
-  variant?: 'folder' | 'image'
+  type?: 'project' | 'folder' | 'phalak'
 }
 
 export default function ProjectCard({
   id,
   name,
-  boardCount = 0,
+  description,
+  phalakCount = 0,
   coverImage,
-  variant = 'folder',
+  type = 'folder',
 }: ProjectCardProps) {
-  const cardVariant = coverImage ? 'image' : variant
+  const cardVariant = coverImage ? 'image' : 'folder'
+  const isPhalak = type === 'phalak'
 
   return (
-    <Link href={`/projects/${id}`} style={{ textDecoration: 'none' }}>
-      <Card
-        hoverable
-        variant="outlined"
-        style={{
-          width: 289,
-          height: cardVariant === 'image' ? 272 : 192,
-          border: '0.5px solid #cfcfcf',
-          borderRadius: 10,
-        }}
-        styles={{
-          body: {
-            padding: cardVariant === 'image' ? 0 : 24,
-            height: '100%',
-          }
-        }}
-      >
+    <Card
+      hoverable
+      variant="outlined"
+      style={{
+        width: 289,
+        height: cardVariant === 'image' ? 272 : 192,
+        border: '0.5px solid #cfcfcf',
+        borderRadius: 10,
+        position: 'relative',
+      }}
+      styles={{
+        body: {
+          padding: cardVariant === 'image' ? 0 : 24,
+          height: '100%',
+        }
+      }}
+    >
         {cardVariant === 'folder' ? (
-          // Folder variant
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'flex-start',
-              justifyContent: 'center',
-              height: '100%',
-            }}
-          >
-            <FolderOutlined
-              style={{
-                fontSize: 48,
-                color: '#ffb4a2',
-                marginBottom: 24,
-              }}
-            />
+          // Folder/Phalak variant
+          <>
             <div
               style={{
-                fontSize: 18,
-                fontWeight: 500,
-                fontFamily: 'Inter, sans-serif',
-                color: '#000000',
-                marginBottom: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                justifyContent: 'center',
+                height: '100%',
               }}
             >
-              {name}
+              {isPhalak ? (
+                <FileOutlined
+                  style={{
+                    fontSize: 48,
+                    color: '#1890ff',
+                    marginBottom: 24,
+                  }}
+                />
+              ) : (
+                <FolderOutlined
+                  style={{
+                    fontSize: 48,
+                    color: '#ffb4a2',
+                    marginBottom: 24,
+                  }}
+                />
+              )}
+              <div
+                style={{
+                  fontSize: 16,
+                  fontWeight: 500,
+                  fontFamily: 'Inter, sans-serif',
+                  color: '#000000',
+                  marginBottom: 8,
+                }}
+              >
+                {name}
+              </div>
+              {description && (
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 300,
+                    fontFamily: 'Inter, sans-serif',
+                    color: '#666666',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                  }}
+                >
+                  {description}
+                </div>
+              )}
             </div>
-            <div
-              style={{
-                fontSize: 18,
-                fontWeight: 300,
-                fontFamily: 'Inter, sans-serif',
-                color: '#000000',
-              }}
-            >
-              {boardCount} Boards
-            </div>
-          </div>
+
+            {/* Phalak Count Badge */}
+            {!isPhalak && phalakCount > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 12,
+                  right: 12,
+                  background: '#ffb4a2',
+                  color: '#000000',
+                  borderRadius: 12,
+                  padding: '2px 8px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  fontFamily: 'Inter, sans-serif',
+                }}
+              >
+                {phalakCount}
+              </div>
+            )}
+          </>
         ) : (
           // Image variant
           <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -135,6 +176,5 @@ export default function ProjectCard({
           </div>
         )}
       </Card>
-    </Link>
   )
 }

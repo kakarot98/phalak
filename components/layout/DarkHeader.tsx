@@ -31,15 +31,15 @@ export default function DarkHeader() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 64px',
+        padding: '0 40px',
         background: '#1a1a1a',
-        height: 170,
+        height: 120,
       }}
     >
       {/* Logo */}
       <div
         style={{
-          fontSize: 42,
+          fontSize: 28,
           fontWeight: 600,
           color: '#ffb4a2',
           fontFamily: 'Inter, sans-serif',

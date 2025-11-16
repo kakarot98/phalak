@@ -13,7 +13,7 @@ const theme: ThemeConfig = {
   components: {
     Layout: {
       headerBg: '#1a1a1a',
-      headerHeight: 170,
+      headerHeight: 120,
       bodyBg: '#f7f7f7',
       siderBg: '#ffffff',
     },

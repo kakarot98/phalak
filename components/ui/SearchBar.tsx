@@ -14,17 +14,17 @@ export default function SearchBar({
 }: SearchBarProps) {
   return (
     <Input
-      prefix={<SearchOutlined style={{ color: '#ffffff', fontSize: 20 }} />}
+      prefix={<SearchOutlined style={{ color: '#ffffff', fontSize: 14 }} />}
       placeholder={placeholder}
-      size="large"
+      size="middle"
       style={{
         width: '100%',
-        maxWidth: 906,
-        height: 44,
+        maxWidth: 600,
+        height: 36,
         background: '#cfcfcf',
         border: 'none',
-        borderRadius: 11,
-        fontSize: 21,
+        borderRadius: 8,
+        fontSize: 14,
         fontFamily: 'Inter, sans-serif',
         color: '#000000',
       }}

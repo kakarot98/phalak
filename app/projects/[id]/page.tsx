@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { Card, Button, Row, Col, Modal, Form, Input, message, Typography, Space, Empty, Breadcrumb } from 'antd'
-import { PlusOutlined, FolderOutlined, FileOutlined, HomeOutlined, FolderOpenOutlined } from '@ant-design/icons'
+import { Button, Row, Col, Modal, Form, Input, message, Empty } from 'antd'
+import { PlusOutlined, FolderOutlined, HomeOutlined } from '@ant-design/icons'
 import Link from 'next/link'
 import AppShell from '@/components/layout/AppShell'
+import ProjectCard from '@/components/ui/ProjectCard'
 
-const { Title } = Typography
 const { TextArea } = Input
 
 interface Folder {
@@ -40,7 +40,7 @@ export default function ProjectPage() {
 
   const [project, setProject] = useState<Project | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [modalType, setModalType] = useState<'folder' | 'board'>('folder')
+  const [modalType, setModalType] = useState<'folder' | 'phalak'>('folder')
   const [loading, setLoading] = useState(false)
   const [fetchLoading, setFetchLoading] = useState(true)
   const [form] = Form.useForm()
@@ -93,7 +93,7 @@ export default function ProjectPage() {
     }
   }
 
-  const handleCreateBoard = async (values: { name: string; description?: string }) => {
+  const handleCreatePhalak = async (values: { name: string; description?: string }) => {
     setLoading(true)
     try {
       const res = await fetch('/api/boards', {
@@ -106,30 +106,30 @@ export default function ProjectPage() {
       })
 
       if (res.ok) {
-        message.success('Phalakam created successfully')
+        message.success('Phalak created successfully')
         form.resetFields()
         setIsModalOpen(false)
         fetchProject()
       } else {
         const error = await res.json()
-        message.error(error.error || 'Failed to create phalakam')
+        message.error(error.error || 'Failed to create phalak')
       }
     } catch (error) {
-      message.error('Failed to create phalakam')
+      message.error('Failed to create phalak')
       console.error(error)
     } finally {
       setLoading(false)
     }
   }
 
-  const openModal = (type: 'folder' | 'board') => {
+  const openModal = (type: 'folder' | 'phalak') => {
     setModalType(type)
     setIsModalOpen(true)
   }
 
   if (fetchLoading) {
     return (
-      <AppShell>
+      <AppShell heading="Loading...">
         <div style={{ textAlign: 'center', padding: '48px' }}>Loading...</div>
       </AppShell>
     )
@@ -137,7 +137,7 @@ export default function ProjectPage() {
 
   if (!project) {
     return (
-      <AppShell>
+      <AppShell heading="Project Not Found">
         <Empty description="Project not found" />
       </AppShell>
     )
@@ -146,144 +146,96 @@ export default function ProjectPage() {
   const hasContent = project.folders.length > 0 || project.boards.length > 0
 
   return (
-    <AppShell>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        {/* Breadcrumb */}
-        <Breadcrumb
-          items={[
-            {
-              title: <Link href="/"><HomeOutlined /> Projects</Link>,
-            },
-            {
-              title: project.name,
-            },
-          ]}
-        />
+    <AppShell
+      heading={project.name}
+      breadcrumbs={[
+        { title: <Link href="/"><HomeOutlined /> Home</Link> },
+        { title: project.name },
+      ]}
+      actions={[
+        {
+          label: '+ New Folders',
+          icon: <FolderOutlined />,
+          onClick: () => openModal('folder'),
+          type: 'default',
+        },
+        {
+          label: '+ New Phalaks',
+          icon: <PlusOutlined />,
+          onClick: () => openModal('phalak'),
+          type: 'default',
+        },
+      ]}
+    >
+      {!hasContent ? (
+        <Empty description="No folders or phalaks yet" style={{ padding: '48px' }}>
+          <Button icon={<FolderOutlined />} onClick={() => openModal('folder')}>
+            Create Folder
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('phalak')} style={{ marginLeft: 8 }}>
+            Create Phalak
+          </Button>
+        </Empty>
+      ) : (
+        <Row gutter={[16, 16]}>
+          {project.folders.map((folder) => (
+            <Col key={folder.id}>
+              <Link href={`/folders/${folder.id}`} style={{ textDecoration: 'none' }}>
+                <ProjectCard
+                  id={folder.id}
+                  name={folder.name}
+                  description={folder.description}
+                  phalakCount={folder._count?.boards || 0}
+                  type="folder"
+                />
+              </Link>
+            </Col>
+          ))}
 
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <Title level={2} style={{ margin: 0 }}>{project.name}</Title>
-            {project.description && (
-              <Typography.Text type="secondary">{project.description}</Typography.Text>
-            )}
-          </div>
-          <Space>
-            <Button
-              icon={<FolderOutlined />}
-              onClick={() => openModal('folder')}
-            >
-              New Folder
-            </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => openModal('board')}
-            >
-              New Phalakam
-            </Button>
-          </Space>
-        </div>
+          {project.boards.map((board) => (
+            <Col key={board.id}>
+              <Link href={`/boards/${board.id}`} style={{ textDecoration: 'none' }}>
+                <ProjectCard
+                  id={board.id}
+                  name={board.name}
+                  description={board.description}
+                  type="phalak"
+                />
+              </Link>
+            </Col>
+          ))}
+        </Row>
+      )}
 
-        {/* Content */}
-        {!hasContent ? (
-          <Empty
-            description="No folders or phalakams yet"
-            style={{ padding: '48px' }}
-          >
-            <Space>
-              <Button icon={<FolderOutlined />} onClick={() => openModal('folder')}>
-                Create Folder
-              </Button>
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('board')}>
-                Create Phalakam
-              </Button>
-            </Space>
-          </Empty>
-        ) : (
-          <Row gutter={[16, 16]}>
-            {/* Folders */}
-            {project.folders.map((folder) => (
-              <Col xs={24} sm={12} md={8} lg={6} key={folder.id}>
-                <Link href={`/folders/${folder.id}`} style={{ textDecoration: 'none' }}>
-                  <Card
-                    hoverable
-                    style={{ height: '100%' }}
-                    cover={
-                      <div style={{ padding: '40px', textAlign: 'center', background: '#fff7e6' }}>
-                        <FolderOpenOutlined style={{ fontSize: '48px', color: '#faad14' }} />
-                      </div>
-                    }
-                  >
-                    <Card.Meta
-                      title={folder.name}
-                      description={
-                        folder.description ||
-                        `${folder._count?.subFolders || 0} folders, ${folder._count?.boards || 0} phalakams`
-                      }
-                    />
-                  </Card>
-                </Link>
-              </Col>
-            ))}
-
-            {/* Boards */}
-            {project.boards.map((board) => (
-              <Col xs={24} sm={12} md={8} lg={6} key={board.id}>
-                <Link href={`/boards/${board.id}`} style={{ textDecoration: 'none' }}>
-                  <Card
-                    hoverable
-                    style={{ height: '100%' }}
-                    cover={
-                      <div style={{ padding: '40px', textAlign: 'center', background: '#f0f5ff' }}>
-                        <FileOutlined style={{ fontSize: '48px', color: '#1890ff' }} />
-                      </div>
-                    }
-                  >
-                    <Card.Meta
-                      title={board.name}
-                      description={board.description || 'Phalakam'}
-                    />
-                  </Card>
-                </Link>
-              </Col>
-            ))}
-          </Row>
-        )}
-
-        {/* Create Modal */}
-        <Modal
-          title={modalType === 'folder' ? 'Create Folder' : 'Create Phalakam'}
-          open={isModalOpen}
-          onCancel={() => setIsModalOpen(false)}
-          footer={null}
+      <Modal
+        title={modalType === 'folder' ? 'Create Folder' : 'Create Phalak'}
+        open={isModalOpen}
+        onCancel={() => setIsModalOpen(false)}
+        footer={null}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={modalType === 'folder' ? handleCreateFolder : handleCreatePhalak}
         >
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={modalType === 'folder' ? handleCreateFolder : handleCreateBoard}
+          <Form.Item
+            name="name"
+            label="Name"
+            rules={[{ required: true, message: 'Please enter a name' }]}
           >
-            <Form.Item
-              name="name"
-              label="Name"
-              rules={[{ required: true, message: 'Please enter a name' }]}
-            >
-              <Input placeholder={modalType === 'folder' ? 'Character Design' : 'Main Characters'} />
-            </Form.Item>
-            <Form.Item name="description" label="Description">
-              <TextArea rows={3} placeholder="Optional description" />
-            </Form.Item>
-            <Form.Item>
-              <Space>
-                <Button type="primary" htmlType="submit" loading={loading}>
-                  Create
-                </Button>
-                <Button onClick={() => setIsModalOpen(false)}>Cancel</Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        </Modal>
-      </Space>
+            <Input placeholder={modalType === 'folder' ? 'Character Design' : 'Main Characters'} />
+          </Form.Item>
+          <Form.Item name="description" label="Description">
+            <TextArea rows={3} placeholder="Optional description" />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" loading={loading} style={{ marginRight: 8 }}>
+              Create
+            </Button>
+            <Button onClick={() => setIsModalOpen(false)}>Cancel</Button>
+          </Form.Item>
+        </Form>
+      </Modal>
     </AppShell>
   )
 }

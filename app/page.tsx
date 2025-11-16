@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { Button, Row, Col, Modal, Form, Input, message, Space, Empty, Tabs } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
+import Link from 'next/link'
 import AppShell from '@/components/layout/AppShell'
-import SearchBar from '@/components/ui/SearchBar'
 import ProjectCard from '@/components/ui/ProjectCard'
 
 const { TextArea } = Input
@@ -77,127 +77,62 @@ export default function ProjectsPage() {
   const tabItems = [
     {
       key: 'projects',
-      label: (
-        <span
-          style={{
-            fontSize: 24,
-            fontWeight: 500,
-            fontFamily: 'Inter, sans-serif',
-          }}
-        >
-          Projects
-        </span>
-      ),
+      label: <span style={{ fontSize: 16, fontWeight: 500, fontFamily: 'Inter, sans-serif' }}>Projects</span>,
     },
     {
-      key: 'boards',
-      label: (
-        <span
-          style={{
-            fontSize: 24,
-            fontWeight: 300,
-            fontFamily: 'Inter, sans-serif',
-          }}
-        >
-          Boards
-        </span>
-      ),
+      key: 'phalaks',
+      label: <span style={{ fontSize: 16, fontWeight: 300, fontFamily: 'Inter, sans-serif' }}>Phalaks</span>,
     },
   ]
 
   return (
-    <AppShell>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        {/* Search Bar */}
-        <SearchBar />
+    <AppShell
+      heading="Your Workspace"
+      actions={[
+        { label: '+ New Projects', onClick: () => setIsModalOpen(true), type: 'default' },
+        { label: '+ New Phalaks', onClick: () => {}, type: 'default' },
+      ]}
+    >
+      {/* Tabs */}
+      <Tabs
+        defaultActiveKey="projects"
+        items={tabItems}
+        tabBarStyle={{
+          borderBottom: '1px solid #cfcfcf',
+        }}
+      />
 
-        {/* Your Workplace Heading */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginTop: 40,
-          }}
+      {/* Projects Grid */}
+      {fetchLoading ? (
+        <div style={{ textAlign: 'center', padding: '48px' }}>Loading...</div>
+      ) : projects.length === 0 ? (
+        <Empty
+          description="No projects yet"
+          style={{ padding: '48px' }}
         >
-          <div
-            style={{
-              fontSize: 42,
-              fontWeight: 600,
-              fontFamily: 'Inter, sans-serif',
-            }}
-          >
-            Your Workplace
-          </div>
-          <Space size="middle">
-            <Button
-              style={{
-                border: '0.5px solid #cfcfcf',
-                borderRadius: 4,
-                fontSize: 17,
-                fontWeight: 300,
-                fontFamily: 'Inter, sans-serif',
-                height: 28,
-              }}
-              onClick={() => setIsModalOpen(true)}
-            >
-              + New Projects
-            </Button>
-            <Button
-              style={{
-                border: '0.5px solid #cfcfcf',
-                borderRadius: 4,
-                fontSize: 17,
-                fontWeight: 300,
-                fontFamily: 'Inter, sans-serif',
-                height: 28,
-              }}
-            >
-              + New Boards
-            </Button>
-          </Space>
-        </div>
-
-        {/* Tabs */}
-        <Tabs
-          defaultActiveKey="projects"
-          items={tabItems}
-          style={{
-            marginTop: 20,
-          }}
-          tabBarStyle={{
-            borderBottom: '1px solid #cfcfcf',
-          }}
-        />
-
-        {/* Projects Grid */}
-        {fetchLoading ? (
-          <div style={{ textAlign: 'center', padding: '48px' }}>Loading...</div>
-        ) : projects.length === 0 ? (
-          <Empty
-            description="No projects yet"
-            style={{ padding: '48px' }}
-          >
-            <Button icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
-              Create Your First Project
-            </Button>
-          </Empty>
-        ) : (
-          <Row gutter={[20, 20]}>
-            {projects.map((project) => (
-              <Col key={project.id}>
+          <Button icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
+            Create Your First Project
+          </Button>
+        </Empty>
+      ) : (
+        <Row gutter={[20, 20]}>
+          {projects.map((project) => (
+            <Col key={project.id}>
+              <Link href={`/projects/${project.id}`} style={{ textDecoration: 'none' }}>
                 <ProjectCard
                   id={project.id}
                   name={project.name}
-                  boardCount={project._count?.boards || 0}
-                  variant="folder"
+                  description={project.description}
+                  phalakCount={project._count?.boards || 0}
+                  type="project"
                 />
-              </Col>
-            ))}
-          </Row>
-        )}
+              </Link>
+            </Col>
+          ))}
+        </Row>
+      )}
 
-        <Modal
+      <Modal
           title="Create Project"
           open={isModalOpen}
           onCancel={() => setIsModalOpen(false)}
@@ -224,7 +159,6 @@ export default function ProjectsPage() {
             </Form.Item>
           </Form>
         </Modal>
-      </Space>
     </AppShell>
   )
 }
