@@ -17,3 +17,20 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Sidebar responsive behavior - CSS only (no JS) */
+.app-sidebar {
+  transition: width 0.2s ease-in-out, margin 0.2s ease-in-out;
+}
+
+/* Hide sidebar on mobile devices (< 768px - matches Ant Design's md breakpoint) */
+@media (max-width: 767px) {
+  .app-sidebar {
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    flex: 0 0 0 !important;
+    overflow: hidden;
+    border-right: none !important;
+  }
+}

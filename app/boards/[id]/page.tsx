@@ -8,6 +8,8 @@ import CanvasLayout from '@/components/layout/CanvasLayout'
 import BoardCanvas from '@/components/canvas/BoardCanvas'
 import CanvasCard from '@/components/canvas/CanvasCard'
 import TextCard from '@/components/cards/TextCard'
+import LoadingState from '@/components/ui/LoadingState'
+import ErrorBoundary from '@/components/error/ErrorBoundary'
 
 const { TextArea } = Input
 
@@ -164,40 +166,36 @@ export default function BoardPage() {
 
   if (fetchLoading) {
     return (
-      <div style={{
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#f7f5f2'
-      }}>
-        <div>Loading...</div>
-      </div>
+      <ErrorBoundary>
+        <LoadingState message="Loading phalak..." fullScreen />
+      </ErrorBoundary>
     )
   }
 
   if (!board) {
     return (
-      <div style={{
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#f7f5f2'
-      }}>
-        <Empty description="Phalakam not found">
-          <Link href="/">
-            <Button type="primary">Back to Projects</Button>
-          </Link>
-        </Empty>
-      </div>
+      <ErrorBoundary>
+        <div style={{
+          width: '100vw',
+          height: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#f7f5f2'
+        }}>
+          <Empty description="Phalakam not found">
+            <Link href="/">
+              <Button type="primary">Back to Projects</Button>
+            </Link>
+          </Empty>
+        </div>
+      </ErrorBoundary>
     )
   }
 
   return (
-    <CanvasLayout boardName={board.name}>
+    <ErrorBoundary>
+      <CanvasLayout boardName={board.name}>
       {/* Canvas */}
       <BoardCanvas onCardMove={handleCardMove} onAddCard={handleAddCard}>
         {board.cards.map((card) => (
@@ -250,6 +248,7 @@ export default function BoardPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </CanvasLayout>
+      </CanvasLayout>
+    </ErrorBoundary>
   )
 }

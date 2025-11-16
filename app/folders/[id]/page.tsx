@@ -7,6 +7,8 @@ import { PlusOutlined, FolderOutlined, HomeOutlined } from '@ant-design/icons'
 import Link from 'next/link'
 import AppShell from '@/components/layout/AppShell'
 import ProjectCard from '@/components/ui/ProjectCard'
+import LoadingState from '@/components/ui/LoadingState'
+import ErrorBoundary from '@/components/error/ErrorBoundary'
 
 const { TextArea } = Input
 
@@ -143,17 +145,21 @@ export default function FolderPage() {
 
   if (fetchLoading) {
     return (
-      <AppShell heading="Loading...">
-        <div style={{ textAlign: 'center', padding: '48px' }}>Loading...</div>
-      </AppShell>
+      <ErrorBoundary>
+        <AppShell heading="Loading...">
+          <LoadingState message="Loading folder..." />
+        </AppShell>
+      </ErrorBoundary>
     )
   }
 
   if (!folder) {
     return (
-      <AppShell heading="Folder Not Found">
-        <Empty description="Folder not found" />
-      </AppShell>
+      <ErrorBoundary>
+        <AppShell heading="Folder Not Found">
+          <Empty description="Folder not found" />
+        </AppShell>
+      </ErrorBoundary>
     )
   }
 
@@ -174,7 +180,8 @@ export default function FolderPage() {
   breadcrumbs.push({ title: folder.name })
 
   return (
-    <AppShell
+    <ErrorBoundary>
+      <AppShell
       heading={folder.project.name}
       breadcrumbs={breadcrumbs}
       actions={[
@@ -261,6 +268,7 @@ export default function FolderPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </AppShell>
+      </AppShell>
+    </ErrorBoundary>
   )
 }

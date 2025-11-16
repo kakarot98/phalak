@@ -43,9 +43,20 @@ export default function AppShell({
             padding: '32px 40px',
             background: '#f7f7f7',
             minHeight: 'calc(100vh - 120px)',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
-          <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Space
+            direction="vertical"
+            size="large"
+            style={{
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1
+            }}
+          >
             {/* Search Bar */}
             {showSearch && <SearchBar />}
 

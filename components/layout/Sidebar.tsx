@@ -63,13 +63,12 @@ export default function Sidebar() {
 
   return (
     <Sider
+      className="app-sidebar"
       width={280}
       style={{
         background: '#ffffff',
         borderRight: '1px solid #f0f0f0',
       }}
-      breakpoint="md"
-      collapsedWidth={0}
     >
       <Menu
         mode="inline"
