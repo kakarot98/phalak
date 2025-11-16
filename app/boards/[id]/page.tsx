@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Button, Modal, Form, Input, message, Breadcrumb, Empty } from 'antd'
-import { HomeOutlined, FolderOutlined, UndoOutlined, QuestionCircleOutlined, SearchOutlined, BellOutlined, SettingOutlined, ShareAltOutlined, ExportOutlined, EyeOutlined } from '@ant-design/icons'
+import { Button, Modal, Form, Input, message, Empty } from 'antd'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import CanvasLayout from '@/components/layout/CanvasLayout'
 import BoardCanvas from '@/components/canvas/BoardCanvas'
 import CanvasCard from '@/components/canvas/CanvasCard'
 import TextCard from '@/components/cards/TextCard'
@@ -197,65 +197,7 @@ export default function BoardPage() {
   }
 
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Top Navigation Bar (Milanote style) */}
-      <div style={{
-        height: '64px',
-        background: 'white',
-        borderBottom: '1px solid #e8e8e8',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 24px',
-        zIndex: 100
-      }}>
-        {/* Left: Breadcrumb */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Breadcrumb
-            items={[
-              {
-                title: <Link href="/"><HomeOutlined /> Projects</Link>,
-              },
-              {
-                title: <Link href={`/projects/${board.project.id}`}>{board.project.name}</Link>,
-              },
-              ...(board.folder
-                ? [{
-                    title: <Link href={`/folders/${board.folder.id}`}><FolderOutlined /> {board.folder.name}</Link>,
-                  }]
-                : []
-              ),
-              {
-                title: board.name,
-              },
-            ]}
-          />
-        </div>
-
-        {/* Center: Board Title */}
-        <div style={{
-          fontSize: '16px',
-          fontWeight: 500,
-          color: '#333'
-        }}>
-          {board.name}
-        </div>
-
-        {/* Right: Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Button icon={<UndoOutlined />} type="text" />
-          <div style={{ color: '#999', cursor: 'pointer' }}>0</div>
-          <Button icon={<QuestionCircleOutlined />} type="text" />
-          <Button icon={<SearchOutlined />} type="text" />
-          <Button icon={<BellOutlined />} type="text" />
-          <Button icon={<SettingOutlined />} type="text" />
-          <div style={{ width: '1px', height: '24px', background: '#e8e8e8', margin: '0 8px' }} />
-          <Button icon={<ShareAltOutlined />}>Share</Button>
-          <Button icon={<ExportOutlined />}>Export</Button>
-          <Button icon={<EyeOutlined />}>View</Button>
-        </div>
-      </div>
-
+    <CanvasLayout boardName={board.name}>
       {/* Canvas */}
       <BoardCanvas onCardMove={handleCardMove} onAddCard={handleAddCard}>
         {board.cards.map((card) => (
@@ -308,6 +250,6 @@ export default function BoardPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </CanvasLayout>
   )
 }

@@ -16,7 +16,7 @@ export default function TextCard({ title, content, color }: TextCardProps) {
 
   return (
     <Card
-      bordered={false}
+      variant="borderless"
       style={{
         boxShadow: '0 2px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
         borderRadius: '6px',
@@ -25,8 +25,10 @@ export default function TextCard({ title, content, color }: TextCardProps) {
         userSelect: 'none', // Prevent text selection while dragging
         transition: 'box-shadow 0.2s ease, transform 0.2s ease'
       }}
-      bodyStyle={{
-        padding: '18px'
+      styles={{
+        body: {
+          padding: '18px'
+        }
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06)'

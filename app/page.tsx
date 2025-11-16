@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, Button, Row, Col, Modal, Form, Input, message, Typography, Space, Empty } from 'antd'
-import { PlusOutlined, FolderOpenOutlined } from '@ant-design/icons'
-import Link from 'next/link'
+import { Button, Row, Col, Modal, Form, Input, message, Space, Empty, Tabs } from 'antd'
+import { PlusOutlined } from '@ant-design/icons'
 import AppShell from '@/components/layout/AppShell'
+import SearchBar from '@/components/ui/SearchBar'
+import ProjectCard from '@/components/ui/ProjectCard'
 
-const { Title } = Typography
 const { TextArea } = Input
 
 interface Project {
@@ -74,21 +74,103 @@ export default function ProjectsPage() {
     }
   }
 
+  const tabItems = [
+    {
+      key: 'projects',
+      label: (
+        <span
+          style={{
+            fontSize: 24,
+            fontWeight: 500,
+            fontFamily: 'Inter, sans-serif',
+          }}
+        >
+          Projects
+        </span>
+      ),
+    },
+    {
+      key: 'boards',
+      label: (
+        <span
+          style={{
+            fontSize: 24,
+            fontWeight: 300,
+            fontFamily: 'Inter, sans-serif',
+          }}
+        >
+          Boards
+        </span>
+      ),
+    },
+  ]
+
   return (
     <AppShell>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Title level={2} style={{ margin: 0 }}>Projects</Title>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setIsModalOpen(true)}
-            size="large"
+        {/* Search Bar */}
+        <SearchBar />
+
+        {/* Your Workplace Heading */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: 40,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 42,
+              fontWeight: 600,
+              fontFamily: 'Inter, sans-serif',
+            }}
           >
-            New Project
-          </Button>
+            Your Workplace
+          </div>
+          <Space size="middle">
+            <Button
+              style={{
+                border: '0.5px solid #cfcfcf',
+                borderRadius: 4,
+                fontSize: 17,
+                fontWeight: 300,
+                fontFamily: 'Inter, sans-serif',
+                height: 28,
+              }}
+              onClick={() => setIsModalOpen(true)}
+            >
+              + New Projects
+            </Button>
+            <Button
+              style={{
+                border: '0.5px solid #cfcfcf',
+                borderRadius: 4,
+                fontSize: 17,
+                fontWeight: 300,
+                fontFamily: 'Inter, sans-serif',
+                height: 28,
+              }}
+            >
+              + New Boards
+            </Button>
+          </Space>
         </div>
 
+        {/* Tabs */}
+        <Tabs
+          defaultActiveKey="projects"
+          items={tabItems}
+          style={{
+            marginTop: 20,
+          }}
+          tabBarStyle={{
+            borderBottom: '1px solid #cfcfcf',
+          }}
+        />
+
+        {/* Projects Grid */}
         {fetchLoading ? (
           <div style={{ textAlign: 'center', padding: '48px' }}>Loading...</div>
         ) : projects.length === 0 ? (
@@ -96,30 +178,20 @@ export default function ProjectsPage() {
             description="No projects yet"
             style={{ padding: '48px' }}
           >
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
+            <Button icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
               Create Your First Project
             </Button>
           </Empty>
         ) : (
-          <Row gutter={[16, 16]}>
+          <Row gutter={[20, 20]}>
             {projects.map((project) => (
-              <Col xs={24} sm={12} md={8} lg={6} key={project.id}>
-                <Link href={`/projects/${project.id}`} style={{ textDecoration: 'none' }}>
-                  <Card
-                    hoverable
-                    style={{ height: '100%' }}
-                    cover={
-                      <div style={{ padding: '40px', textAlign: 'center', background: '#f0f5ff' }}>
-                        <FolderOpenOutlined style={{ fontSize: '48px', color: '#1890ff' }} />
-                      </div>
-                    }
-                  >
-                    <Card.Meta
-                      title={project.name}
-                      description={project.description || `${project._count?.folders || 0} folders, ${project._count?.boards || 0} phalakams`}
-                    />
-                  </Card>
-                </Link>
+              <Col key={project.id}>
+                <ProjectCard
+                  id={project.id}
+                  name={project.name}
+                  boardCount={project._count?.boards || 0}
+                  variant="folder"
+                />
               </Col>
             ))}
           </Row>

@@ -1,11 +1,11 @@
 'use client'
 
-import { Layout, Menu } from 'antd'
-import { FolderOutlined } from '@ant-design/icons'
-import Link from 'next/link'
+import { Layout } from 'antd'
 import { ReactNode } from 'react'
+import DarkHeader from './DarkHeader'
+import Sidebar from './Sidebar'
 
-const { Header, Content } = Layout
+const { Content } = Layout
 
 interface AppShellProps {
   children: ReactNode
@@ -14,27 +14,19 @@ interface AppShellProps {
 export default function AppShell({ children }: AppShellProps) {
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Header style={{ display: 'flex', alignItems: 'center', padding: '0 24px' }}>
-        <div style={{ color: '#1890ff', fontSize: '20px', fontWeight: 'bold', marginRight: '40px' }}>
-          Phalakam
-        </div>
-        <Menu
-          theme="light"
-          mode="horizontal"
-          defaultSelectedKeys={['workspaces']}
-          style={{ flex: 1, minWidth: 0 }}
-          items={[
-            {
-              key: 'workspaces',
-              icon: <FolderOutlined />,
-              label: <Link href="/">Workspaces</Link>,
-            },
-          ]}
-        />
-      </Header>
-      <Content style={{ padding: '24px', background: '#f5f5f5' }}>
-        {children}
-      </Content>
+      <DarkHeader />
+      <Layout>
+        <Sidebar />
+        <Content
+          style={{
+            padding: '48px 52px',
+            background: '#f7f7f7',
+            minHeight: 'calc(100vh - 170px)',
+          }}
+        >
+          {children}
+        </Content>
+      </Layout>
     </Layout>
   )
 }

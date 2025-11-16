@@ -2,25 +2,29 @@ import type { ThemeConfig } from 'antd'
 
 const theme: ThemeConfig = {
   token: {
-    colorPrimary: '#1890ff',
+    colorPrimary: '#ffb4a2',
     colorBgContainer: '#ffffff',
-    colorBgLayout: '#f5f5f5',
-    borderRadius: 8,
+    colorBgLayout: '#f7f7f7',
+    borderRadius: 10,
     borderRadiusLG: 12,
     fontSize: 14,
     controlHeight: 40,
   },
   components: {
     Layout: {
-      headerBg: '#ffffff',
-      headerHeight: 64,
-      bodyBg: '#f5f5f5',
+      headerBg: '#1a1a1a',
+      headerHeight: 170,
+      bodyBg: '#f7f7f7',
+      siderBg: '#ffffff',
     },
     Card: {
-      borderRadiusLG: 12,
+      borderRadiusLG: 10,
     },
     Button: {
       controlHeight: 40,
+    },
+    Input: {
+      borderRadius: 11,
     },
   },
 }
