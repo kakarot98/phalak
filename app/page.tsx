@@ -8,6 +8,7 @@ import ProjectCard from "@/components/ui/ProjectCard";
 import LoadingState from "@/components/ui/LoadingState";
 import ErrorBoundary from "@/components/error/ErrorBoundary";
 import EntityModal from "@/components/ui/EntityModal";
+import ContextMenu from "@/components/ui/ContextMenu";
 import { useFetchEntity } from "@/hooks/useFetchEntity";
 import { useCreateEntity } from "@/hooks/useCreateEntity";
 import { useModalWithType } from "@/hooks/useModalState";
@@ -50,6 +51,32 @@ export default function ProjectsPage() {
       await createPhalak(values);
     }
     modal.close();
+  };
+
+  // Context menu handlers (placeholders for now)
+  const handleDelete = (id: string) => {
+    console.log("Delete:", id);
+    // TODO: Implement delete functionality
+  };
+
+  const handleRename = (id: string) => {
+    console.log("Rename:", id);
+    // TODO: Implement rename functionality
+  };
+
+  const handleCopy = (id: string) => {
+    console.log("Copy:", id);
+    // TODO: Implement copy functionality
+  };
+
+  const handleCut = (id: string) => {
+    console.log("Cut:", id);
+    // TODO: Implement cut functionality
+  };
+
+  const handlePaste = (id: string) => {
+    console.log("Paste:", id);
+    // TODO: Implement paste functionality
   };
 
   const tabItems = [
@@ -105,19 +132,27 @@ export default function ProjectsPage() {
           <Row gutter={[20, 20]}>
             {projects.map((project) => (
               <Col key={project.id}>
-                <Link
-                  href={`/projects/${project.id}`}
-                  style={{ textDecoration: "none" }}
+                <ContextMenu
+                  onDelete={() => handleDelete(project.id)}
+                  onRename={() => handleRename(project.id)}
+                  onCopy={() => handleCopy(project.id)}
+                  onCut={() => handleCut(project.id)}
+                  onPaste={() => handlePaste(project.id)}
                 >
-                  <ProjectCard
-                    id={project.id}
-                    name={project.name}
-                    description={project.description}
-                    phalakCount={project.boards?.length || 0}
-                    subFolderCount={project.folders?.length || 0}
-                    type="project"
-                  />
-                </Link>
+                  <Link
+                    href={`/projects/${project.id}`}
+                    style={{ textDecoration: "none" }}
+                  >
+                    <ProjectCard
+                      id={project.id}
+                      name={project.name}
+                      description={project.description}
+                      phalakCount={project.boards?.length || 0}
+                      subFolderCount={project.folders?.length || 0}
+                      type="project"
+                    />
+                  </Link>
+                </ContextMenu>
               </Col>
             ))}
           </Row>

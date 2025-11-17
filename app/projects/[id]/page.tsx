@@ -9,6 +9,7 @@ import AppShell from "@/components/layout/AppShell";
 import ProjectCard from "@/components/ui/ProjectCard";
 import LoadingState from "@/components/ui/LoadingState";
 import ErrorBoundary from "@/components/error/ErrorBoundary";
+import ContextMenu from "@/components/ui/ContextMenu";
 
 const { TextArea } = Input;
 
@@ -151,6 +152,32 @@ export default function ProjectPage() {
     setIsModalOpen(true);
   };
 
+  // Context menu handlers (placeholders for now)
+  const handleDelete = (id: string, type: "folder" | "phalak") => {
+    console.log(`Delete ${type}:`, id);
+    // TODO: Implement delete functionality
+  };
+
+  const handleRename = (id: string, type: "folder" | "phalak") => {
+    console.log(`Rename ${type}:`, id);
+    // TODO: Implement rename functionality
+  };
+
+  const handleCopy = (id: string, type: "folder" | "phalak") => {
+    console.log(`Copy ${type}:`, id);
+    // TODO: Implement copy functionality
+  };
+
+  const handleCut = (id: string, type: "folder" | "phalak") => {
+    console.log(`Cut ${type}:`, id);
+    // TODO: Implement cut functionality
+  };
+
+  const handlePaste = (id: string, type: "folder" | "phalak") => {
+    console.log(`Paste ${type}:`, id);
+    // TODO: Implement paste functionality
+  };
+
   if (fetchLoading) {
     return (
       <ErrorBoundary>
@@ -226,35 +253,51 @@ export default function ProjectPage() {
           <Row gutter={[16, 16]}>
             {project.folders.map((folder) => (
               <Col key={folder.id}>
-                <Link
-                  href={`/folders/${folder.id}`}
-                  style={{ textDecoration: "none" }}
+                <ContextMenu
+                  onDelete={() => handleDelete(folder.id, "folder")}
+                  onRename={() => handleRename(folder.id, "folder")}
+                  onCopy={() => handleCopy(folder.id, "folder")}
+                  onCut={() => handleCut(folder.id, "folder")}
+                  onPaste={() => handlePaste(folder.id, "folder")}
                 >
-                  <ProjectCard
-                    id={folder.id}
-                    name={folder.name}
-                    description={folder.description}
-                    phalakCount={folder._count?.boards || 0}
-                    subFolderCount={folder._count?.subFolders || 0}
-                    type="folder"
-                  />
-                </Link>
+                  <Link
+                    href={`/folders/${folder.id}`}
+                    style={{ textDecoration: "none" }}
+                  >
+                    <ProjectCard
+                      id={folder.id}
+                      name={folder.name}
+                      description={folder.description}
+                      phalakCount={folder._count?.boards || 0}
+                      subFolderCount={folder._count?.subFolders || 0}
+                      type="folder"
+                    />
+                  </Link>
+                </ContextMenu>
               </Col>
             ))}
 
             {project.boards.map((board) => (
               <Col key={board.id}>
-                <Link
-                  href={`/boards/${board.id}`}
-                  style={{ textDecoration: "none" }}
+                <ContextMenu
+                  onDelete={() => handleDelete(board.id, "phalak")}
+                  onRename={() => handleRename(board.id, "phalak")}
+                  onCopy={() => handleCopy(board.id, "phalak")}
+                  onCut={() => handleCut(board.id, "phalak")}
+                  onPaste={() => handlePaste(board.id, "phalak")}
                 >
-                  <ProjectCard
-                    id={board.id}
-                    name={board.name}
-                    description={board.description}
-                    type="phalak"
-                  />
-                </Link>
+                  <Link
+                    href={`/boards/${board.id}`}
+                    style={{ textDecoration: "none" }}
+                  >
+                    <ProjectCard
+                      id={board.id}
+                      name={board.name}
+                      description={board.description}
+                      type="phalak"
+                    />
+                  </Link>
+                </ContextMenu>
               </Col>
             ))}
           </Row>
