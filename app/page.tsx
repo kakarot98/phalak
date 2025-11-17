@@ -9,10 +9,12 @@ import LoadingState from "@/components/ui/LoadingState";
 import ErrorBoundary from "@/components/error/ErrorBoundary";
 import EntityModal from "@/components/ui/EntityModal";
 import ContextMenu from "@/components/ui/ContextMenu";
+import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { useFetchEntity } from "@/hooks/useFetchEntity";
 import { useCreateEntity } from "@/hooks/useCreateEntity";
 import { useUpdateEntity } from "@/hooks/useUpdateEntity";
-import { useModalWithType } from "@/hooks/useModalState";
+import { useDeleteEntity } from "@/hooks/useDeleteEntity";
+import { useModalWithType, useModalState } from "@/hooks/useModalState";
 import type { Project } from "@/types/entities";
 import { TYPOGRAPHY, COLORS } from "@/theme";
 import { useState } from "react";
@@ -46,6 +48,15 @@ export default function ProjectsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>("");
 
+  // Delete modal state
+  const deleteModal = useModalState();
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+    folderCount: number;
+    phalakCount: number;
+  } | null>(null);
+
   const handleCreate = async (values: {
     name: string;
     description?: string;
@@ -61,9 +72,38 @@ export default function ProjectsPage() {
   };
 
   // Context menu handlers
-  const handleDelete = (id: string) => {
-    console.log("Delete:", id);
-    // TODO: Implement delete functionality
+  const handleDelete = (
+    id: string,
+    name: string,
+    folderCount: number,
+    phalakCount: number,
+  ) => {
+    setDeleteTarget({ id, name, folderCount, phalakCount });
+    deleteModal.open();
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    try {
+      const res = await fetch(`/api/projects/${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to delete project");
+      }
+
+      message.success("Project deleted successfully");
+      deleteModal.close();
+      setDeleteTarget(null);
+      refetch();
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error("Unknown error");
+      message.error(err.message);
+      console.error("Error deleting project:", err);
+    }
   };
 
   const handleRename = (id: string, name: string) => {
@@ -170,7 +210,14 @@ export default function ProjectsPage() {
             {projects.map((project) => (
               <Col key={project.id}>
                 <ContextMenu
-                  onDelete={() => handleDelete(project.id)}
+                  onDelete={() =>
+                    handleDelete(
+                      project.id,
+                      project.name,
+                      project.folders?.length || 0,
+                      project.boards?.length || 0,
+                    )
+                  }
                   onRename={() => handleRename(project.id, project.name)}
                   onCopy={() => handleCopy(project.id)}
                   onCut={() => handleCut(project.id)}
@@ -251,6 +298,46 @@ export default function ProjectsPage() {
                   },
                 ]
           }
+        />
+
+        <ConfirmationModal
+          open={deleteModal.isOpen}
+          title="Delete Project?"
+          description={
+            deleteTarget ? (
+              <>
+                <p>
+                  Are you sure you want to delete{" "}
+                  <strong>{deleteTarget.name}</strong>?
+                </p>
+                {(deleteTarget.folderCount > 0 ||
+                  deleteTarget.phalakCount > 0) && (
+                  <p>
+                    This project contains:
+                    {deleteTarget.folderCount > 0 && (
+                      <span> {deleteTarget.folderCount} folder(s)</span>
+                    )}
+                    {deleteTarget.folderCount > 0 &&
+                      deleteTarget.phalakCount > 0 &&
+                      " and"}
+                    {deleteTarget.phalakCount > 0 && (
+                      <span> {deleteTarget.phalakCount} phalak(s)</span>
+                    )}
+                  </p>
+                )}
+                <p>
+                  <strong>This action cannot be undone.</strong>
+                </p>
+              </>
+            ) : (
+              ""
+            )
+          }
+          confirmText="Delete"
+          cancelText="Cancel"
+          danger
+          onConfirm={handleConfirmDelete}
+          onCancel={deleteModal.close}
         />
       </AppShell>
     </ErrorBoundary>

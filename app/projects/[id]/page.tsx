@@ -10,6 +10,8 @@ import ProjectCard from "@/components/ui/ProjectCard";
 import LoadingState from "@/components/ui/LoadingState";
 import ErrorBoundary from "@/components/error/ErrorBoundary";
 import ContextMenu from "@/components/ui/ContextMenu";
+import ConfirmationModal from "@/components/ui/ConfirmationModal";
+import { useModalState } from "@/hooks/useModalState";
 
 const { TextArea } = Input;
 
@@ -47,6 +49,16 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [form] = Form.useForm();
+
+  // Delete modal state
+  const deleteModal = useModalState();
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+    type: "folder" | "phalak";
+    folderCount?: number;
+    phalakCount?: number;
+  } | null>(null);
 
   useEffect(() => {
     fetchProject();
@@ -159,8 +171,66 @@ export default function ProjectPage() {
 
   // Context menu handlers
   const handleDelete = (id: string, type: "folder" | "phalak") => {
-    console.log(`Delete ${type}:`, id);
-    // TODO: Implement delete functionality
+    if (type === "folder") {
+      const folder = project?.folders.find((f) => f.id === id);
+      if (folder) {
+        setDeleteTarget({
+          id,
+          name: folder.name,
+          type,
+          folderCount: folder._count?.subFolders || 0,
+          phalakCount: folder._count?.boards || 0,
+        });
+        deleteModal.open();
+      }
+    } else {
+      const board = project?.boards.find((b) => b.id === id);
+      if (board) {
+        setDeleteTarget({
+          id,
+          name: board.name,
+          type,
+        });
+        deleteModal.open();
+      }
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    const endpoint =
+      deleteTarget.type === "folder"
+        ? `/api/folders/${deleteTarget.id}`
+        : `/api/boards/${deleteTarget.id}`;
+
+    try {
+      const res = await fetch(endpoint, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(
+          errorData.error ||
+            `Failed to delete ${deleteTarget.type === "folder" ? "folder" : "phalak"}`,
+        );
+      }
+
+      message.success(
+        `${deleteTarget.type === "folder" ? "Folder" : "Phalak"} deleted successfully`,
+      );
+      deleteModal.close();
+      setDeleteTarget(null);
+      fetchProject();
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error("Unknown error");
+      message.error(err.message);
+      console.error(
+        `Error deleting ${deleteTarget.type === "folder" ? "folder" : "phalak"}:`,
+        err,
+      );
+    }
   };
 
   const handleRename = (
@@ -402,6 +472,59 @@ export default function ProjectPage() {
             </Form.Item>
           </Form>
         </Modal>
+
+        <ConfirmationModal
+          open={deleteModal.isOpen}
+          title={
+            deleteTarget?.type === "folder"
+              ? "Delete Folder?"
+              : "Delete Phalak?"
+          }
+          description={
+            deleteTarget ? (
+              <>
+                {deleteTarget.type === "folder" ? (
+                  <>
+                    <p>
+                      Are you sure you want to delete{" "}
+                      <strong>{deleteTarget.name}</strong>?
+                    </p>
+                    {(deleteTarget.folderCount! > 0 ||
+                      deleteTarget.phalakCount! > 0) && (
+                      <p>
+                        This folder contains:
+                        {deleteTarget.folderCount! > 0 && (
+                          <span> {deleteTarget.folderCount} subfolder(s)</span>
+                        )}
+                        {deleteTarget.folderCount! > 0 &&
+                          deleteTarget.phalakCount! > 0 &&
+                          " and"}
+                        {deleteTarget.phalakCount! > 0 && (
+                          <span> {deleteTarget.phalakCount} phalak(s)</span>
+                        )}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p>
+                    Are you sure you want to delete{" "}
+                    <strong>{deleteTarget.name}</strong>?
+                  </p>
+                )}
+                <p>
+                  <strong>This action cannot be undone.</strong>
+                </p>
+              </>
+            ) : (
+              ""
+            )
+          }
+          confirmText="Delete"
+          cancelText="Cancel"
+          danger
+          onConfirm={handleConfirmDelete}
+          onCancel={deleteModal.close}
+        />
       </AppShell>
     </ErrorBoundary>
   );
