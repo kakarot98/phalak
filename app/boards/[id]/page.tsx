@@ -12,6 +12,7 @@ import LoadingState from "@/components/ui/LoadingState";
 import ErrorBoundary from "@/components/error/ErrorBoundary";
 import { calculateNewZIndex } from "@/lib/collision";
 import { Card } from "@/types/card";
+import { COLORS } from "@/theme";
 
 const { TextArea } = Input;
 
@@ -42,6 +43,7 @@ export default function BoardPage() {
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [form] = Form.useForm();
+  const contentValue = Form.useWatch("content", form);
 
   useEffect(() => {
     fetchBoard();
@@ -69,7 +71,7 @@ export default function BoardPage() {
     }
   };
 
-  const handleCreateCard = async (values: { title: string; body: string }) => {
+  const handleCreateCard = async (values: { content: string }) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/boards/${boardId}/cards`, {
@@ -77,9 +79,8 @@ export default function BoardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "TEXT",
-          title: values.title,
           content: JSON.stringify({
-            richText: values.body,
+            richText: values.content,
           }),
           positionX: 100 + Math.random() * 200,
           positionY: 100 + Math.random() * 200,
@@ -88,16 +89,16 @@ export default function BoardPage() {
       });
 
       if (res.ok) {
-        message.success("Card created successfully");
+        message.success("Note created successfully");
         form.resetFields();
         setIsModalOpen(false);
         fetchBoard();
       } else {
         const error = await res.json();
-        message.error(error.error || "Failed to create card");
+        message.error(error.error || "Failed to create note");
       }
     } catch (error) {
-      message.error("Failed to create card");
+      message.error("Failed to create note");
       console.error(error);
     } finally {
       setLoading(false);
@@ -227,35 +228,53 @@ export default function BoardPage() {
 
         {/* Create Card Modal */}
         <Modal
-          title="Create Text Note"
+          title="Create Note"
           open={isModalOpen}
           onCancel={() => setIsModalOpen(false)}
           footer={null}
+          destroyOnHidden
         >
-          <Form form={form} layout="vertical" onFinish={handleCreateCard}>
-            <Form.Item
-              name="title"
-              label="Title"
-              rules={[{ required: true, message: "Please enter a title" }]}
-            >
-              <Input placeholder="Card Title" />
-            </Form.Item>
-            <Form.Item
-              name="body"
-              label="Content"
-              rules={[{ required: true, message: "Please enter content" }]}
-            >
-              <TextArea rows={5} placeholder="Your note content..." />
-            </Form.Item>
-            <Form.Item>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <Button type="primary" htmlType="submit" loading={loading}>
-                  Create
-                </Button>
-                <Button onClick={() => setIsModalOpen(false)}>Cancel</Button>
-              </div>
-            </Form.Item>
-          </Form>
+          <div
+            style={{
+              marginBottom: 24,
+              color: COLORS.text.primary,
+              lineHeight: 1.6,
+            }}
+          >
+            <Form form={form} layout="vertical" onFinish={handleCreateCard}>
+              <Form.Item
+                name="content"
+                rules={[
+                  { required: true, message: "Please enter note content" },
+                ]}
+              >
+                <TextArea
+                  rows={6}
+                  placeholder="Type your note here..."
+                  autoFocus
+                />
+              </Form.Item>
+              <Form.Item style={{ marginBottom: 0 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: 8,
+                  }}
+                >
+                  <Button onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                  <Button
+                    type="primary"
+                    htmlType="submit"
+                    loading={loading}
+                    disabled={!contentValue?.trim()}
+                  >
+                    Create
+                  </Button>
+                </div>
+              </Form.Item>
+            </Form>
+          </div>
         </Modal>
       </CanvasLayout>
     </ErrorBoundary>
