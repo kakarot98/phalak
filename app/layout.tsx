@@ -1,3 +1,4 @@
+import '@ant-design/v5-patch-for-react-19';
 import { AntdRegistry } from '@ant-design/nextjs-registry'
 import { ConfigProvider } from 'antd'
 import type { Metadata } from 'next'

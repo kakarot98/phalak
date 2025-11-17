@@ -10,22 +10,10 @@ import CanvasCard from '@/components/canvas/CanvasCard'
 import TextCard from '@/components/cards/TextCard'
 import LoadingState from '@/components/ui/LoadingState'
 import ErrorBoundary from '@/components/error/ErrorBoundary'
+import { calculateNewZIndex } from '@/lib/collision'
+import { Card } from '@/types/card'
 
 const { TextArea } = Input
-
-interface Card {
-  id: string
-  type: string
-  title: string | null
-  content: string | null
-  positionX: number
-  positionY: number
-  width: number
-  height: number | null
-  zIndex: number
-  color: string | null
-  boardId: string
-}
 
 interface Board {
   id: string
@@ -124,34 +112,48 @@ export default function BoardPage() {
   const handleCardMove = useCallback(async (cardId: string, deltaX: number, deltaY: number) => {
     // Find the card
     const card = board?.cards.find(c => c.id === cardId)
-    if (!card) return
+    if (!card || !board) return
 
     // Calculate new position
     const newX = card.positionX + deltaX
     const newY = card.positionY + deltaY
 
-    // Optimistic update
+    // Create temporary card with new position for collision check
+    const movedCard = { ...card, positionX: newX, positionY: newY }
+
+    // Check if zIndex needs updating based on overlapping cards
+    const newZIndex = calculateNewZIndex(movedCard, board.cards)
+
+    // Prepare update data
+    const updateData: { positionX: number; positionY: number; zIndex?: number } = {
+      positionX: newX,
+      positionY: newY
+    }
+
+    // Include zIndex if it needs to be updated
+    if (newZIndex !== null) {
+      updateData.zIndex = newZIndex
+    }
+
+    // Optimistic update - include zIndex if changed
     setBoard(prev => {
       if (!prev) return prev
       return {
         ...prev,
         cards: prev.cards.map(c =>
           c.id === cardId
-            ? { ...c, positionX: newX, positionY: newY }
+            ? { ...c, ...updateData }
             : c
         )
       }
     })
 
-    // Update on server
+    // Update on server - include zIndex if changed
     try {
       const res = await fetch(`/api/cards/${cardId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          positionX: newX,
-          positionY: newY
-        })
+        body: JSON.stringify(updateData)
       })
 
       if (!res.ok) {
