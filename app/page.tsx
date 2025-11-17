@@ -11,9 +11,12 @@ import EntityModal from "@/components/ui/EntityModal";
 import ContextMenu from "@/components/ui/ContextMenu";
 import { useFetchEntity } from "@/hooks/useFetchEntity";
 import { useCreateEntity } from "@/hooks/useCreateEntity";
+import { useUpdateEntity } from "@/hooks/useUpdateEntity";
 import { useModalWithType } from "@/hooks/useModalState";
 import type { Project } from "@/types/entities";
 import { TYPOGRAPHY, COLORS } from "@/theme";
+import { useState } from "react";
+import { message } from "antd";
 
 export default function ProjectsPage() {
   // Custom hooks for data fetching, creating, and modal state
@@ -39,6 +42,10 @@ export default function ProjectsPage() {
 
   const modal = useModalWithType(["project", "phalak"] as const, "project");
 
+  // Inline edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<string>("");
+
   const handleCreate = async (values: {
     name: string;
     description?: string;
@@ -53,15 +60,45 @@ export default function ProjectsPage() {
     modal.close();
   };
 
-  // Context menu handlers (placeholders for now)
+  // Context menu handlers
   const handleDelete = (id: string) => {
     console.log("Delete:", id);
     // TODO: Implement delete functionality
   };
 
-  const handleRename = (id: string) => {
-    console.log("Rename:", id);
-    // TODO: Implement rename functionality
+  const handleRename = (id: string, name: string) => {
+    setEditingId(id);
+    setEditingName(name);
+  };
+
+  const handleEditCancel = () => {
+    setEditingId(null);
+    setEditingName("");
+  };
+
+  const handleEditSave = async (id: string) => {
+    const trimmedName = editingName.trim();
+
+    if (!trimmedName) {
+      message.error("Name cannot be empty");
+      return;
+    }
+
+    try {
+      await fetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmedName }),
+      });
+
+      message.success("Project renamed successfully");
+      setEditingId(null);
+      setEditingName("");
+      refetch();
+    } catch (error) {
+      message.error("Failed to rename project");
+      console.error("Error renaming project:", error);
+    }
   };
 
   const handleCopy = (id: string) => {
@@ -134,7 +171,7 @@ export default function ProjectsPage() {
               <Col key={project.id}>
                 <ContextMenu
                   onDelete={() => handleDelete(project.id)}
-                  onRename={() => handleRename(project.id)}
+                  onRename={() => handleRename(project.id, project.name)}
                   onCopy={() => handleCopy(project.id)}
                   onCut={() => handleCut(project.id)}
                   onPaste={() => handlePaste(project.id)}
@@ -150,6 +187,11 @@ export default function ProjectsPage() {
                       phalakCount={project.boards?.length || 0}
                       subFolderCount={project.folders?.length || 0}
                       type="project"
+                      isEditing={editingId === project.id}
+                      editingName={editingName}
+                      onEditingNameChange={setEditingName}
+                      onEditSave={() => handleEditSave(project.id)}
+                      onEditCancel={handleEditCancel}
                     />
                   </Link>
                 </ContextMenu>

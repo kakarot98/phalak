@@ -1,8 +1,9 @@
 "use client";
 
-import { Card } from "antd";
+import { Card, Input } from "antd";
 import { FolderOutlined, FileOutlined } from "@ant-design/icons";
 import { COLORS, TYPOGRAPHY, COMMON_STYLES, SPACING, RADIUS } from "@/theme";
+import { KeyboardEvent } from "react";
 
 interface ProjectCardProps {
   id: string;
@@ -12,6 +13,12 @@ interface ProjectCardProps {
   subFolderCount?: number;
   coverImage?: string | null;
   type?: "project" | "folder" | "phalak";
+  // Inline edit props
+  isEditing?: boolean;
+  editingName?: string;
+  onEditingNameChange?: (name: string) => void;
+  onEditSave?: () => void;
+  onEditCancel?: () => void;
 }
 
 export default function ProjectCard({
@@ -22,10 +29,41 @@ export default function ProjectCard({
   subFolderCount = 0,
   coverImage,
   type = "folder",
+  isEditing = false,
+  editingName = "",
+  onEditingNameChange,
+  onEditSave,
+  onEditCancel,
 }: ProjectCardProps) {
   const cardVariant = coverImage ? "image" : "folder";
   const isPhalak = type === "phalak";
   const totalChildren = phalakCount + subFolderCount;
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      onEditSave?.();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onEditCancel?.();
+    }
+  };
+
+  const handleBlur = () => {
+    // Save on blur (click outside)
+    onEditSave?.();
+  };
+
+  const handleInputClick = (e: React.MouseEvent) => {
+    // Prevent Link navigation when clicking input
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    // Select all text when input is focused for easy replacement
+    e.target.select();
+  };
 
   return (
     <Card
@@ -79,8 +117,30 @@ export default function ProjectCard({
                 color: COLORS.text.primary,
                 marginBottom: SPACING.sm,
               }}
+              onClick={handleInputClick}
             >
-              {name}
+              {isEditing ? (
+                <Input
+                  value={editingName}
+                  onChange={(e) => onEditingNameChange?.(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={handleBlur}
+                  onClick={handleInputClick}
+                  onFocus={handleInputFocus}
+                  autoFocus
+                  maxLength={100}
+                  style={{
+                    ...TYPOGRAPHY.label.large,
+                    padding: 0,
+                    border: "none",
+                    outline: `1px solid ${COLORS.primary}`,
+                    outlineOffset: "-1px",
+                    backgroundColor: COLORS.background.white,
+                  }}
+                />
+              ) : (
+                name
+              )}
             </div>
             {description && (
               <div
@@ -160,8 +220,31 @@ export default function ProjectCard({
                 fontWeight: 500,
                 color: COLORS.text.primary,
               }}
+              onClick={handleInputClick}
             >
-              {name}
+              {isEditing ? (
+                <Input
+                  value={editingName}
+                  onChange={(e) => onEditingNameChange?.(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={handleBlur}
+                  onClick={handleInputClick}
+                  onFocus={handleInputFocus}
+                  autoFocus
+                  maxLength={100}
+                  style={{
+                    ...TYPOGRAPHY.body.large,
+                    fontWeight: 500,
+                    padding: 0,
+                    border: "none",
+                    outline: `1px solid ${COLORS.primary}`,
+                    outlineOffset: "-1px",
+                    backgroundColor: COLORS.background.white,
+                  }}
+                />
+              ) : (
+                name
+              )}
             </div>
           </div>
         </div>

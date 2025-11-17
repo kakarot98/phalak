@@ -150,15 +150,60 @@ export default function FolderPage() {
     setIsModalOpen(true);
   };
 
-  // Context menu handlers (placeholders for now)
+  // Inline edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<string>("");
+  const [editingType, setEditingType] = useState<"folder" | "phalak">("folder");
+
+  // Context menu handlers
   const handleDelete = (id: string, type: "folder" | "phalak") => {
     console.log(`Delete ${type}:`, id);
     // TODO: Implement delete functionality
   };
 
-  const handleRename = (id: string, type: "folder" | "phalak") => {
-    console.log(`Rename ${type}:`, id);
-    // TODO: Implement rename functionality
+  const handleRename = (
+    id: string,
+    name: string,
+    type: "folder" | "phalak",
+  ) => {
+    setEditingId(id);
+    setEditingName(name);
+    setEditingType(type);
+  };
+
+  const handleEditCancel = () => {
+    setEditingId(null);
+    setEditingName("");
+  };
+
+  const handleEditSave = async (id: string) => {
+    const trimmedName = editingName.trim();
+
+    if (!trimmedName) {
+      message.error("Name cannot be empty");
+      return;
+    }
+
+    const endpoint =
+      editingType === "folder" ? `/api/folders/${id}` : `/api/boards/${id}`;
+
+    try {
+      await fetch(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmedName }),
+      });
+
+      message.success(
+        `${editingType === "folder" ? "Folder" : "Phalak"} renamed successfully`,
+      );
+      setEditingId(null);
+      setEditingName("");
+      fetchFolder();
+    } catch (error) {
+      message.error(`Failed to rename ${editingType}`);
+      console.error(`Error renaming ${editingType}:`, error);
+    }
   };
 
   const handleCopy = (id: string, type: "folder" | "phalak") => {
@@ -274,7 +319,9 @@ export default function FolderPage() {
               <Col key={subfolder.id}>
                 <ContextMenu
                   onDelete={() => handleDelete(subfolder.id, "folder")}
-                  onRename={() => handleRename(subfolder.id, "folder")}
+                  onRename={() =>
+                    handleRename(subfolder.id, subfolder.name, "folder")
+                  }
                   onCopy={() => handleCopy(subfolder.id, "folder")}
                   onCut={() => handleCut(subfolder.id, "folder")}
                   onPaste={() => handlePaste(subfolder.id, "folder")}
@@ -290,6 +337,11 @@ export default function FolderPage() {
                       phalakCount={subfolder._count?.boards || 0}
                       subFolderCount={subfolder._count?.subFolders || 0}
                       type="folder"
+                      isEditing={editingId === subfolder.id}
+                      editingName={editingName}
+                      onEditingNameChange={setEditingName}
+                      onEditSave={() => handleEditSave(subfolder.id)}
+                      onEditCancel={handleEditCancel}
                     />
                   </Link>
                 </ContextMenu>
@@ -300,7 +352,7 @@ export default function FolderPage() {
               <Col key={board.id}>
                 <ContextMenu
                   onDelete={() => handleDelete(board.id, "phalak")}
-                  onRename={() => handleRename(board.id, "phalak")}
+                  onRename={() => handleRename(board.id, board.name, "phalak")}
                   onCopy={() => handleCopy(board.id, "phalak")}
                   onCut={() => handleCut(board.id, "phalak")}
                   onPaste={() => handlePaste(board.id, "phalak")}
@@ -314,6 +366,11 @@ export default function FolderPage() {
                       name={board.name}
                       description={board.description}
                       type="phalak"
+                      isEditing={editingId === board.id}
+                      editingName={editingName}
+                      onEditingNameChange={setEditingName}
+                      onEditSave={() => handleEditSave(board.id)}
+                      onEditCancel={handleEditCancel}
                     />
                   </Link>
                 </ContextMenu>
