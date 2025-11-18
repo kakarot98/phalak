@@ -10,8 +10,9 @@ import CanvasCard from "@/components/canvas/CanvasCard";
 import TextCard from "@/components/cards/TextCard";
 import LoadingState from "@/components/ui/LoadingState";
 import ErrorBoundary from "@/components/error/ErrorBoundary";
+import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { calculateNewZIndex } from "@/lib/collision";
-import { Card } from "@/types/card";
+import { Card, parseCardContent, TextCardContent } from "@/types/card";
 import { COLORS } from "@/theme";
 
 const { TextArea } = Input;
@@ -44,6 +45,11 @@ export default function BoardPage() {
   const [fetchLoading, setFetchLoading] = useState(true);
   const [form] = Form.useForm();
   const contentValue = Form.useWatch("content", form);
+
+  // Inline editing state
+  const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState<string>("");
+  const [showEmptyWarning, setShowEmptyWarning] = useState(false);
 
   useEffect(() => {
     fetchBoard();
@@ -172,6 +178,55 @@ export default function BoardPage() {
     [board],
   );
 
+  // Inline editing handlers
+  const handleStartEdit = useCallback(
+    (cardId: string, currentContent: string) => {
+      setEditingCardId(cardId);
+      setEditingContent(currentContent);
+    },
+    [],
+  );
+
+  const handleEditSave = useCallback(async () => {
+    if (!editingCardId) return;
+
+    // Validate content is not empty
+    if (!editingContent.trim()) {
+      setShowEmptyWarning(true);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/cards/${editingCardId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: JSON.stringify({
+            richText: editingContent,
+          }),
+        }),
+      });
+
+      if (res.ok) {
+        message.success("Note updated successfully");
+        setEditingCardId(null);
+        setEditingContent("");
+        fetchBoard();
+      } else {
+        const error = await res.json();
+        message.error(error.error || "Failed to update note");
+      }
+    } catch (error) {
+      message.error("Failed to update note");
+      console.error(error);
+    }
+  }, [editingCardId, editingContent]);
+
+  const handleEditCancel = useCallback(() => {
+    setEditingCardId(null);
+    setEditingContent("");
+  }, []);
+
   if (fetchLoading) {
     return (
       <ErrorBoundary>
@@ -208,22 +263,40 @@ export default function BoardPage() {
       <CanvasLayout boardName={board.name} onAddCard={handleAddCard}>
         {/* Canvas */}
         <BoardCanvas onCardMove={handleCardMove}>
-          {board.cards.map((card) => (
-            <CanvasCard
-              key={card.id}
-              id={card.id}
-              x={card.positionX}
-              y={card.positionY}
-              width={card.width}
-              zIndex={card.zIndex}
-            >
-              <TextCard
-                title={card.title}
-                content={card.content}
-                color={card.color}
-              />
-            </CanvasCard>
-          ))}
+          {board.cards.map((card) => {
+            const isCardEditing = editingCardId === card.id;
+            const cardContent = card.content
+              ? parseCardContent<TextCardContent>({
+                  content: card.content,
+                } as any)
+              : null;
+
+            return (
+              <CanvasCard
+                key={card.id}
+                id={card.id}
+                x={card.positionX}
+                y={card.positionY}
+                width={card.width}
+                zIndex={card.zIndex}
+                isEditing={isCardEditing}
+              >
+                <TextCard
+                  title={card.title}
+                  content={card.content}
+                  color={card.color}
+                  isEditing={isCardEditing}
+                  editingContent={editingContent}
+                  onEditingContentChange={setEditingContent}
+                  onEditSave={handleEditSave}
+                  onEditCancel={handleEditCancel}
+                  onStartEdit={() =>
+                    handleStartEdit(card.id, cardContent?.richText || "")
+                  }
+                />
+              </CanvasCard>
+            );
+          })}
         </BoardCanvas>
 
         {/* Create Card Modal */}
@@ -276,6 +349,16 @@ export default function BoardPage() {
             </Form>
           </div>
         </Modal>
+
+        {/* Empty Note Warning Modal */}
+        <ConfirmationModal
+          open={showEmptyWarning}
+          title="Cannot Save Empty Note"
+          description="Notes cannot be empty. Please enter some content or press Escape to cancel editing."
+          confirmText="OK"
+          onConfirm={() => setShowEmptyWarning(false)}
+          onCancel={() => setShowEmptyWarning(false)}
+        />
       </CanvasLayout>
     </ErrorBoundary>
   );

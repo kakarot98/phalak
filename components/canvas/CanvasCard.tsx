@@ -11,6 +11,7 @@ interface CanvasCardProps {
   width?: number;
   children: ReactNode;
   zIndex?: number;
+  isEditing?: boolean;
 }
 
 export default function CanvasCard({
@@ -20,10 +21,12 @@ export default function CanvasCard({
   width = 280,
   children,
   zIndex = 0,
+  isEditing = false,
 }: CanvasCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id,
+      disabled: isEditing, // Disable dragging when editing
     });
 
   const style: React.CSSProperties = {
@@ -34,7 +37,7 @@ export default function CanvasCard({
     minWidth: "60px",
     transform: CSS.Translate.toString(transform),
     zIndex: isDragging ? 1000 : zIndex,
-    cursor: isDragging ? "grabbing" : "grab",
+    cursor: isEditing ? "default" : isDragging ? "grabbing" : "grab",
     opacity: isDragging ? 0.8 : 1,
     transition: isDragging ? "none" : "opacity 0.2s",
   };
