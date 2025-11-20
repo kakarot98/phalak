@@ -60,7 +60,7 @@ function ToolButton({
         <div
           style={{
             fontSize: 24,
-            color: active ? "#323b4a" : "#8d929a",
+            color: "#323b4a",
             marginBottom: 4,
           }}
         >
@@ -69,7 +69,7 @@ function ToolButton({
         <span
           style={{
             fontSize: 9,
-            color: "rgba(2, 12, 31, 0.6)",
+            color: "#323b4a",
             fontFamily: "Inter, sans-serif",
           }}
         >
@@ -134,6 +134,16 @@ export default function CanvasToolbar({ onAddCard }: CanvasToolbarProps) {
         onClick={() => handleAddCard("SUBBOARD")}
         active
       />
+
+      <div
+        style={{
+          width: 3,
+          height: 40,
+          background: "rgba(0, 0, 0, 0.1)",
+          margin: "0 4px",
+        }}
+      />
+
       <ToolButton
         icon={<PictureOutlined />}
         label="Add image"
@@ -152,16 +162,6 @@ export default function CanvasToolbar({ onAddCard }: CanvasToolbarProps) {
         type="DRAW"
         onClick={() => handleAddCard("DRAW")}
       />
-
-      <div
-        style={{
-          width: 1,
-          height: 40,
-          background: "rgba(0, 0, 0, 0.1)",
-          margin: "0 4px",
-        }}
-      />
-
       <ToolButton
         icon={<DeleteOutlined />}
         label="Trash"
