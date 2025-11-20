@@ -2,17 +2,25 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button, Modal, Form, Input, message, Empty } from "antd";
+import { LinkOutlined } from "@ant-design/icons";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import CanvasLayout from "@/components/layout/CanvasLayout";
 import BoardCanvas from "@/components/canvas/BoardCanvas";
 import CanvasCard from "@/components/canvas/CanvasCard";
 import TextCard from "@/components/cards/TextCard";
+import LinkCard from "@/components/cards/LinkCard";
 import LoadingState from "@/components/ui/LoadingState";
 import ErrorBoundary from "@/components/error/ErrorBoundary";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { calculateNewZIndex } from "@/lib/collision";
-import { Card, parseCardContent, TextCardContent } from "@/types/card";
+import {
+  Card,
+  parseCardContent,
+  TextCardContent,
+  LinkCardContent,
+  CardType,
+} from "@/types/card";
 import { COLORS } from "@/theme";
 
 const { TextArea } = Input;
@@ -45,6 +53,8 @@ export default function BoardPage() {
   const [fetchLoading, setFetchLoading] = useState(true);
   const [form] = Form.useForm();
   const contentValue = Form.useWatch("content", form);
+  const [linkForm] = Form.useForm();
+  const linkUrlValue = Form.useWatch("url", linkForm);
 
   // Inline editing state
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
@@ -105,6 +115,57 @@ export default function BoardPage() {
       }
     } catch (error) {
       message.error("Failed to create note");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateLinkCard = async (values: { url: string }) => {
+    setLoading(true);
+    try {
+      // Validate URL format
+      let url = values.url.trim();
+
+      // Add https:// if no protocol specified
+      if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        url = "https://" + url;
+      }
+
+      // Validate URL
+      try {
+        new URL(url);
+      } catch {
+        message.error("Please enter a valid URL");
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch(`/api/boards/${boardId}/cards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "LINK",
+          content: JSON.stringify({
+            url: url,
+          }),
+          positionX: 100 + Math.random() * 200,
+          positionY: 100 + Math.random() * 200,
+          width: 280,
+        }),
+      });
+
+      if (res.ok) {
+        message.success("Link created successfully");
+        linkForm.resetFields();
+        setIsModalOpen(false);
+        fetchBoard();
+      } else {
+        const error = await res.json();
+        message.error(error.error || "Failed to create link");
+      }
+    } catch (error) {
+      message.error("Failed to create link");
       console.error(error);
     } finally {
       setLoading(false);
@@ -188,7 +249,7 @@ export default function BoardPage() {
   );
 
   const handleEditSave = useCallback(async () => {
-    if (!editingCardId) return;
+    if (!editingCardId || !board) return;
 
     // Validate content is not empty
     if (!editingContent.trim()) {
@@ -196,31 +257,58 @@ export default function BoardPage() {
       return;
     }
 
+    // Find the card being edited to determine its type
+    const card = board.cards.find((c) => c.id === editingCardId);
+    if (!card) return;
+
     try {
+      let contentJson;
+      let successMessage;
+
+      if (card.type === CardType.LINK) {
+        // Validate URL format for link cards
+        let url = editingContent.trim();
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+          url = "https://" + url;
+        }
+
+        try {
+          new URL(url);
+        } catch {
+          message.error("Please enter a valid URL");
+          return;
+        }
+
+        contentJson = JSON.stringify({ url });
+        successMessage = "Link updated successfully";
+      } else {
+        // TEXT card
+        contentJson = JSON.stringify({ richText: editingContent });
+        successMessage = "Note updated successfully";
+      }
+
       const res = await fetch(`/api/cards/${editingCardId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: JSON.stringify({
-            richText: editingContent,
-          }),
+          content: contentJson,
         }),
       });
 
       if (res.ok) {
-        message.success("Note updated successfully");
+        message.success(successMessage);
         setEditingCardId(null);
         setEditingContent("");
         fetchBoard();
       } else {
         const error = await res.json();
-        message.error(error.error || "Failed to update note");
+        message.error(error.error || "Failed to update card");
       }
     } catch (error) {
-      message.error("Failed to update note");
+      message.error("Failed to update card");
       console.error(error);
     }
-  }, [editingCardId, editingContent]);
+  }, [editingCardId, editingContent, board]);
 
   const handleEditCancel = useCallback(() => {
     setEditingCardId(null);
@@ -265,11 +353,21 @@ export default function BoardPage() {
         <BoardCanvas onCardMove={handleCardMove}>
           {board.cards.map((card) => {
             const isCardEditing = editingCardId === card.id;
-            const cardContent = card.content
-              ? parseCardContent<TextCardContent>({
-                  content: card.content,
-                } as any)
-              : null;
+
+            // Parse content based on card type
+            const textContent =
+              card.type === CardType.TEXT && card.content
+                ? parseCardContent<TextCardContent>({
+                    content: card.content,
+                  } as any)
+                : null;
+
+            const linkContent =
+              card.type === CardType.LINK && card.content
+                ? parseCardContent<LinkCardContent>({
+                    content: card.content,
+                  } as any)
+                : null;
 
             return (
               <CanvasCard
@@ -281,74 +379,151 @@ export default function BoardPage() {
                 zIndex={card.zIndex}
                 isEditing={isCardEditing}
               >
-                <TextCard
-                  title={card.title}
-                  content={card.content}
-                  color={card.color}
-                  isEditing={isCardEditing}
-                  editingContent={editingContent}
-                  onEditingContentChange={setEditingContent}
-                  onEditSave={handleEditSave}
-                  onEditCancel={handleEditCancel}
-                  onStartEdit={() =>
-                    handleStartEdit(card.id, cardContent?.richText || "")
-                  }
-                />
+                {card.type === CardType.TEXT && (
+                  <TextCard
+                    title={card.title}
+                    content={card.content}
+                    color={card.color}
+                    isEditing={isCardEditing}
+                    editingContent={editingContent}
+                    onEditingContentChange={setEditingContent}
+                    onEditSave={handleEditSave}
+                    onEditCancel={handleEditCancel}
+                    onStartEdit={() =>
+                      handleStartEdit(card.id, textContent?.richText || "")
+                    }
+                  />
+                )}
+                {card.type === CardType.LINK && (
+                  <LinkCard
+                    content={card.content}
+                    color={card.color}
+                    isEditing={isCardEditing}
+                    editingContent={editingContent}
+                    onEditingContentChange={setEditingContent}
+                    onEditSave={handleEditSave}
+                    onEditCancel={handleEditCancel}
+                    onStartEdit={() =>
+                      handleStartEdit(card.id, linkContent?.url || "")
+                    }
+                  />
+                )}
               </CanvasCard>
             );
           })}
         </BoardCanvas>
 
-        {/* Create Card Modal */}
-        <Modal
-          title="Create Note"
-          open={isModalOpen}
-          onCancel={() => setIsModalOpen(false)}
-          footer={null}
-          destroyOnHidden
-        >
-          <div
-            style={{
-              marginBottom: 24,
-              color: COLORS.text.primary,
-              lineHeight: 1.6,
-            }}
+        {/* Create Note Modal */}
+        {cardType === CardType.TEXT && (
+          <Modal
+            title="Create Note"
+            open={isModalOpen}
+            onCancel={() => setIsModalOpen(false)}
+            footer={null}
+            destroyOnHidden
           >
-            <Form form={form} layout="vertical" onFinish={handleCreateCard}>
-              <Form.Item
-                name="content"
-                rules={[
-                  { required: true, message: "Please enter note content" },
-                ]}
-              >
-                <TextArea
-                  rows={6}
-                  placeholder="Type your note here..."
-                  autoFocus
-                />
-              </Form.Item>
-              <Form.Item style={{ marginBottom: 0 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: 8,
-                  }}
+            <div
+              style={{
+                marginBottom: 24,
+                color: COLORS.text.primary,
+                lineHeight: 1.6,
+              }}
+            >
+              <Form form={form} layout="vertical" onFinish={handleCreateCard}>
+                <Form.Item
+                  name="content"
+                  rules={[
+                    { required: true, message: "Please enter note content" },
+                  ]}
                 >
-                  <Button onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={loading}
-                    disabled={!contentValue?.trim()}
+                  <TextArea
+                    rows={6}
+                    placeholder="Type your note here..."
+                    autoFocus
+                  />
+                </Form.Item>
+                <Form.Item style={{ marginBottom: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 8,
+                    }}
                   >
-                    Create
-                  </Button>
-                </div>
-              </Form.Item>
-            </Form>
-          </div>
-        </Modal>
+                    <Button onClick={() => setIsModalOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      loading={loading}
+                      disabled={!contentValue?.trim()}
+                    >
+                      Create
+                    </Button>
+                  </div>
+                </Form.Item>
+              </Form>
+            </div>
+          </Modal>
+        )}
+
+        {/* Create Link Modal */}
+        {cardType === CardType.LINK && (
+          <Modal
+            title="Create Link"
+            open={isModalOpen}
+            onCancel={() => setIsModalOpen(false)}
+            footer={null}
+            destroyOnHidden
+          >
+            <div
+              style={{
+                marginBottom: 24,
+                color: COLORS.text.primary,
+                lineHeight: 1.6,
+              }}
+            >
+              <Form
+                form={linkForm}
+                layout="vertical"
+                onFinish={handleCreateLinkCard}
+              >
+                <Form.Item
+                  name="url"
+                  rules={[{ required: true, message: "Please enter a URL" }]}
+                >
+                  <Input
+                    placeholder="https://example.com"
+                    autoFocus
+                    prefix={<LinkOutlined style={{ color: "#1890ff" }} />}
+                  />
+                </Form.Item>
+                <Form.Item style={{ marginBottom: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 8,
+                    }}
+                  >
+                    <Button onClick={() => setIsModalOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      loading={loading}
+                      disabled={!linkUrlValue?.trim()}
+                    >
+                      Create
+                    </Button>
+                  </div>
+                </Form.Item>
+              </Form>
+            </div>
+          </Modal>
+        )}
 
         {/* Empty Note Warning Modal */}
         <ConfirmationModal
