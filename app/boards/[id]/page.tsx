@@ -14,6 +14,7 @@ import ErrorBoundary from "@/components/error/ErrorBoundary";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { calculateNewZIndex } from "@/lib/collision";
 import { Card, CardType } from "@/types/card";
+import { getCardTypeConfig, isTiptapContentEmpty } from "@/lib/cardTypes";
 
 interface Board {
   id: string;
@@ -87,11 +88,9 @@ export default function BoardPage() {
           ? Math.max(...board.cards.map((c) => c.zIndex))
           : 0;
 
-        // Set initial content based on card type
-        const initialContent =
-          type === CardType.TEXT
-            ? JSON.stringify({ richText: "" })
-            : JSON.stringify({ url: "" });
+        // Get card type configuration
+        const cardConfig = getCardTypeConfig(type as CardType);
+        const initialContent = cardConfig.initialContent();
 
         const tempCard: Card = {
           id: tempId,
@@ -237,40 +236,6 @@ export default function BoardPage() {
     [bringCardToTop],
   );
 
-  // Helper to extract plain text from Tiptap JSON content
-  const extractTextFromTiptap = (content: string): string => {
-    try {
-      const parsed = JSON.parse(content);
-      if (!parsed.content) return "";
-      return parsed.content
-        .map((node: any) =>
-          node.content
-            ? node.content.map((n: any) => n.text || "").join("")
-            : "",
-        )
-        .join("\n")
-        .trim();
-    } catch {
-      // If not JSON, return as-is
-      return content.trim();
-    }
-  };
-
-  // Helper to check if Tiptap content is empty
-  const isTiptapContentEmpty = (content: string): boolean => {
-    try {
-      const parsed = JSON.parse(content);
-      return (
-        !parsed.content ||
-        parsed.content.every(
-          (node: any) => !node.content || node.content.length === 0,
-        )
-      );
-    } catch {
-      return !content.trim();
-    }
-  };
-
   const handleEditSave = useCallback(
     async (content: string) => {
       // Prevent duplicate saves (from blur + keyboard events firing together)
@@ -317,30 +282,18 @@ export default function BoardPage() {
 
         // Save temporary card to backend
         try {
-          let contentJson;
-          if (card.type === CardType.LINK) {
-            // Extract URL from Tiptap JSON
-            let url = extractTextFromTiptap(content);
-            if (!url.startsWith("http://") && !url.startsWith("https://")) {
-              url = "https://" + url;
-            }
-            try {
-              new URL(url);
-            } catch {
-              message.error("Please enter a valid URL");
-              isSavingRef.current = false;
-              return;
-            }
-            contentJson = JSON.stringify({ url });
-          } else {
-            // TEXT card
-            try {
-              const tiptapJson = JSON.parse(content);
-              contentJson = JSON.stringify({ richText: tiptapJson });
-            } catch {
-              contentJson = JSON.stringify({ richText: content });
-            }
+          const cardConfig = getCardTypeConfig(card.type);
+
+          // Validate content using card type config
+          const validation = cardConfig.validateContent(content);
+          if (!validation.valid) {
+            message.error(validation.error || "Invalid content");
+            isSavingRef.current = false;
+            return;
           }
+
+          // Format content for saving using card type config
+          const contentJson = cardConfig.formatForSave(content);
 
           const res = await fetch(`/api/boards/${boardId}/cards`, {
             method: "POST",
@@ -356,11 +309,7 @@ export default function BoardPage() {
 
           if (res.ok) {
             const newCard = await res.json();
-            message.success(
-              card.type === CardType.LINK
-                ? "Link created successfully"
-                : "Note created successfully",
-            );
+            message.success(cardConfig.messages.createSuccess);
             // Replace temporary card with real card from API response
             setBoard((prev) => {
               if (!prev) return prev;
@@ -379,10 +328,10 @@ export default function BoardPage() {
             setEditingCardId(null);
           } else {
             const error = await res.json();
-            message.error(error.error || "Failed to create note");
+            message.error(error.error || cardConfig.messages.createError);
           }
         } catch (error) {
-          message.error("Failed to create note");
+          message.error(getCardTypeConfig(card.type).messages.createError);
           console.error(error);
         }
         isSavingRef.current = false;
@@ -419,38 +368,18 @@ export default function BoardPage() {
       }
 
       try {
-        let contentJson;
-        let successMessage;
+        const cardConfig = getCardTypeConfig(card.type);
 
-        if (card.type === CardType.LINK) {
-          // Extract URL from Tiptap JSON and validate
-          let url = extractTextFromTiptap(content);
-          if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            url = "https://" + url;
-          }
-
-          try {
-            new URL(url);
-          } catch {
-            message.error("Please enter a valid URL");
-            isSavingRef.current = false;
-            return;
-          }
-
-          contentJson = JSON.stringify({ url });
-          successMessage = "Link updated successfully";
-        } else {
-          // TEXT card
-          // content is already a JSON string from Tiptap, so parse it first
-          try {
-            const tiptapJson = JSON.parse(content);
-            contentJson = JSON.stringify({ richText: tiptapJson });
-          } catch {
-            // Fallback for plain text
-            contentJson = JSON.stringify({ richText: content });
-          }
-          successMessage = "Note updated successfully";
+        // Validate content using card type config
+        const validation = cardConfig.validateContent(content);
+        if (!validation.valid) {
+          message.error(validation.error || "Invalid content");
+          isSavingRef.current = false;
+          return;
         }
+
+        // Format content for saving using card type config
+        const contentJson = cardConfig.formatForSave(content);
 
         const res = await fetch(`/api/cards/${editingCardId}`, {
           method: "PATCH",
@@ -462,7 +391,7 @@ export default function BoardPage() {
 
         if (res.ok) {
           const updatedCard = await res.json();
-          message.success(successMessage);
+          message.success(cardConfig.messages.updateSuccess);
           // Update the card in state directly
           setBoard((prev) => {
             if (!prev) return prev;
@@ -476,10 +405,10 @@ export default function BoardPage() {
           setEditingCardId(null);
         } else {
           const error = await res.json();
-          message.error(error.error || "Failed to update card");
+          message.error(error.error || cardConfig.messages.updateError);
         }
       } catch (error) {
-        message.error("Failed to update card");
+        message.error(getCardTypeConfig(card.type).messages.updateError);
         console.error(error);
       }
 
