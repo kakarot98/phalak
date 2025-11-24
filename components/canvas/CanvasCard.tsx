@@ -2,7 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { ReactNode } from "react";
+import { ReactNode, memo } from "react";
 
 interface CanvasCardProps {
   id: string;
@@ -15,7 +15,7 @@ interface CanvasCardProps {
   onClick?: () => void;
 }
 
-export default function CanvasCard({
+function CanvasCard({
   id,
   x,
   y,
@@ -59,3 +59,5 @@ export default function CanvasCard({
     </div>
   );
 }
+
+export default memo(CanvasCard);

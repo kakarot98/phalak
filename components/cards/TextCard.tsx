@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Card } from "antd";
 import { parseCardContent } from "@/types/card";
 import type { TextCardContent } from "@/types/card";
@@ -19,7 +20,7 @@ interface TextCardProps {
   onStartEdit?: () => void;
 }
 
-export default function TextCard({
+function TextCard({
   title,
   content,
   color,
@@ -141,3 +142,5 @@ export default function TextCard({
     </Card>
   );
 }
+
+export default memo(TextCard);

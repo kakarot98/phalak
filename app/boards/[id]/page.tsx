@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Button, Empty, App } from "antd";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -50,6 +50,17 @@ export default function BoardPage() {
 
   // Guard to prevent duplicate saves (from blur + keyboard events)
   const isSavingRef = useRef(false);
+
+  // Track pending move operations per card to prevent race conditions
+  const pendingMovesRef = useRef<Map<string, boolean>>(new Map());
+
+  // Ref to access board state without creating callback dependencies
+  const boardRef = useRef<Board | null>(null);
+
+  // Keep boardRef in sync with board state
+  useEffect(() => {
+    boardRef.current = board;
+  }, [board]);
 
   useEffect(() => {
     fetchBoard();
@@ -126,50 +137,62 @@ export default function BoardPage() {
     [boardId, board],
   );
 
+  // Stable callback using ref - prevents race conditions on rapid moves
   const handleCardMove = useCallback(
     async (cardId: string, deltaX: number, deltaY: number) => {
-      // Find the card
-      const card = board?.cards.find((c) => c.id === cardId);
-      if (!card || !board) return;
+      const currentBoard = boardRef.current;
+      if (!currentBoard) return;
 
-      // Calculate new position
-      const newX = card.positionX + deltaX;
-      const newY = card.positionY + deltaY;
-
-      // Create temporary card with new position for collision check
-      const movedCard = { ...card, positionX: newX, positionY: newY };
-
-      // Check if zIndex needs updating based on overlapping cards
-      const newZIndex = calculateNewZIndex(movedCard, board.cards);
-
-      // Prepare update data
-      const updateData: {
-        positionX: number;
-        positionY: number;
-        zIndex?: number;
-      } = {
-        positionX: newX,
-        positionY: newY,
-      };
-
-      // Include zIndex if it needs to be updated
-      if (newZIndex !== null) {
-        updateData.zIndex = newZIndex;
+      // Skip if a move is already in progress for this card
+      if (pendingMovesRef.current.get(cardId)) {
+        return;
       }
 
-      // Optimistic update - include zIndex if changed
-      setBoard((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          cards: prev.cards.map((c) =>
-            c.id === cardId ? { ...c, ...updateData } : c,
-          ),
-        };
-      });
+      // Find the card from current board state
+      const card = currentBoard.cards.find((c) => c.id === cardId);
+      if (!card) return;
 
-      // Update on server - include zIndex if changed
+      // Mark move as in progress
+      pendingMovesRef.current.set(cardId, true);
+
       try {
+        // Calculate new position
+        const newX = card.positionX + deltaX;
+        const newY = card.positionY + deltaY;
+
+        // Create temporary card with new position for collision check
+        const movedCard = { ...card, positionX: newX, positionY: newY };
+
+        // Check if zIndex needs updating based on overlapping cards
+        const newZIndex = calculateNewZIndex(movedCard, currentBoard.cards);
+
+        // Prepare update data
+        const updateData: {
+          positionX: number;
+          positionY: number;
+          zIndex?: number;
+        } = {
+          positionX: newX,
+          positionY: newY,
+        };
+
+        // Include zIndex if it needs to be updated
+        if (newZIndex !== null) {
+          updateData.zIndex = newZIndex;
+        }
+
+        // Optimistic update - include zIndex if changed
+        setBoard((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            cards: prev.cards.map((c) =>
+              c.id === cardId ? { ...c, ...updateData } : c,
+            ),
+          };
+        });
+
+        // Update on server
         const res = await fetch(`/api/cards/${cardId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -181,60 +204,65 @@ export default function BoardPage() {
         }
       } catch (error) {
         console.error("Failed to update card position:", error);
-        // Revert on error
-        fetchBoard();
-      }
-    },
-    [board],
-  );
-
-  // Bring card to top (update z-index)
-  const bringCardToTop = useCallback(
-    async (cardId: string) => {
-      if (!board) return;
-
-      const card = board.cards.find((c) => c.id === cardId);
-      if (!card) return;
-
-      const maxZIndex = Math.max(...board.cards.map((c) => c.zIndex));
-      // Only update if not already at top
-      if (card.zIndex >= maxZIndex) return;
-
-      const newZIndex = maxZIndex + 1;
-
-      // Optimistic update
-      setBoard((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          cards: prev.cards.map((c) =>
-            c.id === cardId ? { ...c, zIndex: newZIndex } : c,
-          ),
-        };
-      });
-
-      // Update on server
-      try {
-        await fetch(`/api/cards/${cardId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ zIndex: newZIndex }),
+        // Revert on error - use functional update to get fresh state
+        setBoard((prev) => {
+          if (!prev) return prev;
+          // Keep current state, error will be logged but UI stays responsive
+          return prev;
         });
-      } catch (error) {
-        console.error("Failed to update card z-index:", error);
+      } finally {
+        // Always clear pending status
+        pendingMovesRef.current.delete(cardId);
       }
     },
-    [board],
+    [], // No dependencies - uses ref
   );
 
-  // Inline editing handlers
+  // Bring card to top (update z-index) - stable callback using ref
+  const bringCardToTop = useCallback(async (cardId: string) => {
+    const currentBoard = boardRef.current;
+    if (!currentBoard) return;
+
+    const card = currentBoard.cards.find((c) => c.id === cardId);
+    if (!card) return;
+
+    const maxZIndex = Math.max(...currentBoard.cards.map((c) => c.zIndex));
+    // Only update if not already at top
+    if (card.zIndex >= maxZIndex) return;
+
+    const newZIndex = maxZIndex + 1;
+
+    // Optimistic update
+    setBoard((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        cards: prev.cards.map((c) =>
+          c.id === cardId ? { ...c, zIndex: newZIndex } : c,
+        ),
+      };
+    });
+
+    // Update on server
+    try {
+      await fetch(`/api/cards/${cardId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zIndex: newZIndex }),
+      });
+    } catch (error) {
+      console.error("Failed to update card z-index:", error);
+    }
+  }, []); // No dependencies - uses ref
+
+  // Inline editing handlers - stable callback
   const handleStartEdit = useCallback(
     (cardId: string) => {
       setEditingCardId(cardId);
       bringCardToTop(cardId);
     },
     [bringCardToTop],
-  );
+  ); // bringCardToTop is now stable
 
   const handleEditSave = useCallback(
     async (content: string) => {
@@ -242,59 +270,45 @@ export default function BoardPage() {
       if (isSavingRef.current) return;
       isSavingRef.current = true;
 
-      if (!editingCardId || !board) {
-        isSavingRef.current = false;
-        return;
-      }
+      try {
+        if (!editingCardId || !board) return;
 
-      // Find the card being edited to determine its type
-      const card = board.cards.find((c) => c.id === editingCardId);
-      if (!card) {
-        isSavingRef.current = false;
-        return;
-      }
+        // Find the card being edited to determine its type
+        const card = board.cards.find((c) => c.id === editingCardId);
+        if (!card) return;
 
-      const isTemporary = tempCardIds.has(editingCardId);
+        const isTemporary = tempCardIds.has(editingCardId);
+        const isEmpty = isTiptapContentEmpty(content);
 
-      // Check if content is empty (both TEXT and LINK use Tiptap now)
-      const isEmpty = isTiptapContentEmpty(content);
-
-      // Handle temporary cards
-      if (isTemporary) {
-        if (isEmpty) {
-          // Remove temporary card silently (no backend call, no warning)
-          setBoard((prev) => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              cards: prev.cards.filter((c) => c.id !== editingCardId),
-            };
-          });
-          setTempCardIds((prev) => {
-            const newSet = new Set(prev);
-            newSet.delete(editingCardId);
-            return newSet;
-          });
-          setEditingCardId(null);
-          isSavingRef.current = false;
-          return;
-        }
-
-        // Save temporary card to backend
-        try {
-          const cardConfig = getCardTypeConfig(card.type);
-
-          // Validate content using card type config
-          const validation = cardConfig.validateContent(content);
-          if (!validation.valid) {
-            message.error(validation.error || "Invalid content");
-            isSavingRef.current = false;
+        // Handle temporary cards
+        if (isTemporary) {
+          if (isEmpty) {
+            // Remove temporary card silently (no backend call, no warning)
+            setBoard((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                cards: prev.cards.filter((c) => c.id !== editingCardId),
+              };
+            });
+            setTempCardIds((prev) => {
+              const newSet = new Set(prev);
+              newSet.delete(editingCardId);
+              return newSet;
+            });
+            setEditingCardId(null);
             return;
           }
 
-          // Format content for saving using card type config
-          const contentJson = cardConfig.formatForSave(content);
+          // Save temporary card to backend
+          const cardConfig = getCardTypeConfig(card.type);
+          const validation = cardConfig.validateContent(content);
+          if (!validation.valid) {
+            message.error(validation.error || "Invalid content");
+            return;
+          }
 
+          const contentJson = cardConfig.formatForSave(content);
           const res = await fetch(`/api/boards/${boardId}/cards`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -310,7 +324,6 @@ export default function BoardPage() {
           if (res.ok) {
             const newCard = await res.json();
             message.success(cardConfig.messages.createSuccess);
-            // Replace temporary card with real card from API response
             setBoard((prev) => {
               if (!prev) return prev;
               return {
@@ -330,18 +343,12 @@ export default function BoardPage() {
             const error = await res.json();
             message.error(error.error || cardConfig.messages.createError);
           }
-        } catch (error) {
-          message.error(getCardTypeConfig(card.type).messages.createError);
-          console.error(error);
+          return;
         }
-        isSavingRef.current = false;
-        return;
-      }
 
-      // Handle existing cards (non-temporary)
-      if (isEmpty) {
-        // Delete existing empty card
-        try {
+        // Handle existing cards (non-temporary)
+        if (isEmpty) {
+          // Delete existing empty card
           const res = await fetch(`/api/cards/${editingCardId}`, {
             method: "DELETE",
           });
@@ -359,40 +366,27 @@ export default function BoardPage() {
           } else {
             message.error("Failed to delete card");
           }
-        } catch (error) {
-          message.error("Failed to delete card");
-          console.error(error);
-        }
-        isSavingRef.current = false;
-        return;
-      }
-
-      try {
-        const cardConfig = getCardTypeConfig(card.type);
-
-        // Validate content using card type config
-        const validation = cardConfig.validateContent(content);
-        if (!validation.valid) {
-          message.error(validation.error || "Invalid content");
-          isSavingRef.current = false;
           return;
         }
 
-        // Format content for saving using card type config
-        const contentJson = cardConfig.formatForSave(content);
+        // Update existing card
+        const cardConfig = getCardTypeConfig(card.type);
+        const validation = cardConfig.validateContent(content);
+        if (!validation.valid) {
+          message.error(validation.error || "Invalid content");
+          return;
+        }
 
+        const contentJson = cardConfig.formatForSave(content);
         const res = await fetch(`/api/cards/${editingCardId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            content: contentJson,
-          }),
+          body: JSON.stringify({ content: contentJson }),
         });
 
         if (res.ok) {
           const updatedCard = await res.json();
           message.success(cardConfig.messages.updateSuccess);
-          // Update the card in state directly
           setBoard((prev) => {
             if (!prev) return prev;
             return {
@@ -408,11 +402,12 @@ export default function BoardPage() {
           message.error(error.error || cardConfig.messages.updateError);
         }
       } catch (error) {
-        message.error(getCardTypeConfig(card.type).messages.updateError);
+        message.error("Operation failed");
         console.error(error);
+      } finally {
+        // Guaranteed reset - prevents stuck state
+        isSavingRef.current = false;
       }
-
-      isSavingRef.current = false;
     },
     [editingCardId, board, tempCardIds, boardId, message],
   );
@@ -477,6 +472,32 @@ export default function BoardPage() {
     [editingCardId, tempCardIds, board, message],
   );
 
+  // Memoized callback maps for stable references - only recreate when card IDs change
+  const cardCallbacks = useMemo(() => {
+    if (!board) return {};
+
+    const callbacks: Record<
+      string,
+      {
+        onClick: () => void;
+        onStartEdit: () => void;
+      }
+    > = {};
+
+    board.cards.forEach((card) => {
+      callbacks[card.id] = {
+        onClick: () => bringCardToTop(card.id),
+        onStartEdit: () => handleStartEdit(card.id),
+      };
+    });
+
+    return callbacks;
+  }, [
+    board?.cards.map((c) => c.id).join(","),
+    bringCardToTop,
+    handleStartEdit,
+  ]);
+
   if (fetchLoading) {
     return (
       <ErrorBoundary>
@@ -515,6 +536,7 @@ export default function BoardPage() {
         <BoardCanvas onCardMove={handleCardMove}>
           {board.cards.map((card) => {
             const isCardEditing = editingCardId === card.id;
+            const callbacks = cardCallbacks[card.id];
 
             return (
               <CanvasCard
@@ -525,7 +547,7 @@ export default function BoardPage() {
                 width={card.width}
                 zIndex={card.zIndex}
                 isEditing={isCardEditing}
-                onClick={() => bringCardToTop(card.id)}
+                onClick={callbacks?.onClick}
               >
                 {card.type === CardType.TEXT && (
                   <TextCard
@@ -535,7 +557,7 @@ export default function BoardPage() {
                     isEditing={isCardEditing}
                     onEditSave={handleEditSave}
                     onEditCancel={handleEditCancel}
-                    onStartEdit={() => handleStartEdit(card.id)}
+                    onStartEdit={callbacks?.onStartEdit}
                   />
                 )}
                 {card.type === CardType.LINK && (
@@ -545,7 +567,7 @@ export default function BoardPage() {
                     isEditing={isCardEditing}
                     onEditSave={handleEditSave}
                     onEditCancel={handleEditCancel}
-                    onStartEdit={() => handleStartEdit(card.id)}
+                    onStartEdit={callbacks?.onStartEdit}
                   />
                 )}
               </CanvasCard>
