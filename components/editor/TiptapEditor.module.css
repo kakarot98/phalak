@@ -1,0 +1,113 @@
+.tiptapEditor {
+  width: 100%;
+  min-height: 100%;
+}
+
+.tiptapEditor :global(.ProseMirror) {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #666;
+  padding: 8px;
+  margin: -8px;
+  border: none;
+  outline: none;
+  background: #fafafa;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  min-height: 100%;
+  font-family: inherit;
+  transition: background 0.2s ease;
+}
+
+.tiptapEditor :global(.ProseMirror:focus) {
+  outline: none;
+  caret-color: #333;
+  animation: cursorBlink 1.2s ease-in-out infinite;
+}
+
+@keyframes cursorBlink {
+  0%,
+  100% {
+    caret-color: #333;
+  }
+  50% {
+    caret-color: transparent;
+  }
+}
+
+.tiptapEditor :global(.ProseMirror p) {
+  margin: 0;
+}
+
+.tiptapEditor :global(.ProseMirror p.is-editor-empty:first-child::before) {
+  content: attr(data-placeholder);
+  float: left;
+  color: #aaa;
+  pointer-events: none;
+  height: 0;
+}
+
+/* Rich text formatting styles */
+.tiptapEditor :global(.ProseMirror strong) {
+  font-weight: 600;
+  color: #333;
+}
+
+.tiptapEditor :global(.ProseMirror em) {
+  font-style: italic;
+}
+
+.tiptapEditor :global(.ProseMirror code) {
+  background-color: #f4f4f4;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.tiptapEditor :global(.ProseMirror h1) {
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+  margin: 8px 0;
+}
+
+.tiptapEditor :global(.ProseMirror h2) {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin: 6px 0;
+}
+
+.tiptapEditor :global(.ProseMirror h3) {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin: 4px 0;
+}
+
+.tiptapEditor :global(.ProseMirror ul),
+.tiptapEditor :global(.ProseMirror ol) {
+  padding-left: 20px;
+  margin: 8px 0;
+}
+
+.tiptapEditor :global(.ProseMirror li) {
+  margin: 4px 0;
+}
+
+.tiptapEditor :global(.ProseMirror blockquote) {
+  border-left: 3px solid #ddd;
+  padding-left: 12px;
+  margin: 8px 0;
+  color: #666;
+  font-style: italic;
+}
+
+.tiptapEditor :global(.ProseMirror hr) {
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 16px 0;
+}

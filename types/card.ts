@@ -5,13 +5,15 @@
  * Each card has a type that determines its content structure and behavior.
  */
 
+import type { JSONContent } from "@tiptap/core";
+
 export enum CardType {
-  TEXT = 'TEXT',
-  TODO = 'TODO',
-  IMAGE = 'IMAGE',
-  LINK = 'LINK',
-  COLUMN = 'COLUMN',
-  SUBBOARD = 'SUBBOARD',
+  TEXT = "TEXT",
+  TODO = "TODO",
+  IMAGE = "IMAGE",
+  LINK = "LINK",
+  COLUMN = "COLUMN",
+  SUBBOARD = "SUBBOARD",
 }
 
 // ===== Content Type Definitions =====
@@ -19,11 +21,12 @@ export enum CardType {
 
 /**
  * TEXT card content
- * Supports rich text editing (Slate format)
+ * Supports rich text editing (Tiptap format)
+ * Backward compatible with plain text strings
  */
 export interface TextCardContent {
-  richText: string // Slate JSON or HTML
-  source?: string  // Optional reference/citation
+  richText: string | JSONContent; // Plain text (legacy) or Tiptap JSON
+  source?: string; // Optional reference/citation
 }
 
 /**
@@ -31,14 +34,14 @@ export interface TextCardContent {
  * A checklist with items
  */
 export interface TodoCardContent {
-  items: TodoItem[]
+  items: TodoItem[];
 }
 
 export interface TodoItem {
-  id: string
-  text: string
-  completed: boolean
-  order: number
+  id: string;
+  text: string;
+  completed: boolean;
+  order: number;
 }
 
 /**
@@ -46,12 +49,12 @@ export interface TodoItem {
  * Stores image file information
  */
 export interface ImageCardContent {
-  filename: string     // Original filename
-  filepath: string     // Path in local filesystem
-  url: string          // Serving URL
-  width: number        // Original image width
-  height: number       // Original image height
-  caption?: string     // Optional caption
+  filename: string; // Original filename
+  filepath: string; // Path in local filesystem
+  url: string; // Serving URL
+  width: number; // Original image width
+  height: number; // Original image height
+  caption?: string; // Optional caption
 }
 
 /**
@@ -59,12 +62,12 @@ export interface ImageCardContent {
  * Web link with preview metadata
  */
 export interface LinkCardContent {
-  url: string
-  title: string
-  description?: string
-  favicon?: string
-  thumbnail?: string
-  showPreview: boolean  // Toggle preview display
+  url: string;
+  title: string;
+  description?: string;
+  favicon?: string;
+  thumbnail?: string;
+  showPreview: boolean; // Toggle preview display
 }
 
 /**
@@ -72,8 +75,8 @@ export interface LinkCardContent {
  * A vertical container for other cards
  */
 export interface ColumnCardContent {
-  title: string
-  childCardIds: string[] // Cards contained in this column
+  title: string;
+  childCardIds: string[]; // Cards contained in this column
 }
 
 /**
@@ -81,7 +84,7 @@ export interface ColumnCardContent {
  * Links to another board (linkedBoardId is in the Card model)
  */
 export interface SubBoardCardContent {
-  preview?: string // Board thumbnail or description
+  preview?: string; // Board thumbnail or description
 }
 
 // ===== Union Type for Type Safety =====
@@ -92,73 +95,75 @@ export type CardContentData =
   | ImageCardContent
   | LinkCardContent
   | ColumnCardContent
-  | SubBoardCardContent
+  | SubBoardCardContent;
 
 // ===== Full Card Interface (matches Prisma model) =====
 
 export interface Card {
-  id: string
-  boardId: string
-  type: CardType
+  id: string;
+  boardId: string;
+  type: CardType;
 
   // Position and dimensions
-  positionX: number
-  positionY: number
-  width: number
-  height?: number | null
-  zIndex: number
+  positionX: number;
+  positionY: number;
+  width: number;
+  height?: number | null;
+  zIndex: number;
 
   // Visual styling
-  color?: string | null
+  color?: string | null;
 
   // Content
-  title?: string | null
-  content?: string | null // JSON string
+  title?: string | null;
+  content?: string | null; // JSON string
 
   // For SUBBOARD type
-  linkedBoardId?: string | null
+  linkedBoardId?: string | null;
 
-  createdAt: Date
-  updatedAt: Date
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // ===== Helper Type Guards =====
 
 export function isTextCard(card: Card): card is Card & { content: string } {
-  return card.type === CardType.TEXT
+  return card.type === CardType.TEXT;
 }
 
 export function isTodoCard(card: Card): card is Card & { content: string } {
-  return card.type === CardType.TODO
+  return card.type === CardType.TODO;
 }
 
 export function isImageCard(card: Card): card is Card & { content: string } {
-  return card.type === CardType.IMAGE
+  return card.type === CardType.IMAGE;
 }
 
 export function isLinkCard(card: Card): card is Card & { content: string } {
-  return card.type === CardType.LINK
+  return card.type === CardType.LINK;
 }
 
 export function isColumnCard(card: Card): card is Card & { content: string } {
-  return card.type === CardType.COLUMN
+  return card.type === CardType.COLUMN;
 }
 
-export function isSubBoardCard(card: Card): card is Card & { linkedBoardId: string } {
-  return card.type === CardType.SUBBOARD
+export function isSubBoardCard(
+  card: Card,
+): card is Card & { linkedBoardId: string } {
+  return card.type === CardType.SUBBOARD;
 }
 
 // ===== Content Parsing Helpers =====
 
 export function parseCardContent<T>(card: Card): T | null {
-  if (!card.content) return null
+  if (!card.content) return null;
   try {
-    return JSON.parse(card.content) as T
+    return JSON.parse(card.content) as T;
   } catch {
-    return null
+    return null;
   }
 }
 
 export function stringifyCardContent(content: CardContentData): string {
-  return JSON.stringify(content)
+  return JSON.stringify(content);
 }

@@ -3,7 +3,10 @@
 import { Card } from "antd";
 import { parseCardContent } from "@/types/card";
 import type { TextCardContent } from "@/types/card";
-import { KeyboardEvent } from "react";
+import TiptapEditor from "@/components/editor/TiptapEditor";
+import { generateHTML } from "@tiptap/html";
+import StarterKit from "@tiptap/starter-kit";
+import type { JSONContent } from "@tiptap/core";
 
 interface TextCardProps {
   title?: string | null;
@@ -11,10 +14,8 @@ interface TextCardProps {
   color?: string | null;
   // Inline editing props
   isEditing?: boolean;
-  editingContent?: string;
-  onEditingContentChange?: (content: string) => void;
-  onEditSave?: () => void;
-  onEditCancel?: () => void;
+  onEditSave?: (content: string) => void;
+  onEditCancel?: (content: string) => void;
   onStartEdit?: () => void;
 }
 
@@ -23,8 +24,6 @@ export default function TextCard({
   content,
   color,
   isEditing = false,
-  editingContent = "",
-  onEditingContentChange,
   onEditSave,
   onEditCancel,
   onStartEdit,
@@ -34,22 +33,6 @@ export default function TextCard({
     ? parseCardContent<TextCardContent>({ content } as any)
     : null;
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter") {
-      // Enter to save
-      e.preventDefault();
-      onEditSave?.();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      onEditCancel?.();
-    }
-  };
-
-  const handleBlur = () => {
-    // Save on blur (click outside)
-    onEditSave?.();
-  };
-
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (!isEditing) {
       e.stopPropagation();
@@ -57,9 +40,14 @@ export default function TextCard({
     }
   };
 
-  const handleInputClick = (e: React.MouseEvent) => {
-    // Prevent event propagation when clicking input
-    e.stopPropagation();
+  // Helper function to render Tiptap content as HTML
+  const renderTiptapToHTML = (content: string | JSONContent): string => {
+    if (typeof content === "string") {
+      // Legacy plain text - convert line breaks to <br>
+      return content.replace(/\n/g, "<br>");
+    }
+    // New Tiptap JSON format
+    return generateHTML(content, [StarterKit]);
   };
 
   return (
@@ -108,7 +96,7 @@ export default function TextCard({
         </div>
       )}
 
-      {cardContent?.richText && (
+      {(cardContent?.richText || isEditing) && (
         <div
           style={{
             fontSize: "13px",
@@ -120,35 +108,19 @@ export default function TextCard({
           }}
         >
           {isEditing ? (
-            <textarea
-              value={editingContent}
-              onChange={(e) => onEditingContentChange?.(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onBlur={handleBlur}
-              onClick={handleInputClick}
-              autoFocus
-              style={{
-                fontSize: "13px",
-                lineHeight: "1.6",
-                color: "#666",
-                padding: 0,
-                margin: 0,
-                border: "none",
-                borderRadius: 0,
-                outline: "none",
-                boxShadow: "none",
-                backgroundColor: "transparent",
-                resize: "none",
-                width: "100%",
-                minHeight: "100%",
-                fontFamily: "inherit",
-                whiteSpace: "pre-wrap",
-                wordWrap: "break-word",
-                overflowWrap: "break-word",
-              }}
+            <TiptapEditor
+              content={cardContent?.richText || ""}
+              onSave={(newContent) => onEditSave?.(newContent)}
+              onCancel={(newContent) => onEditCancel?.(newContent)}
             />
           ) : (
-            cardContent.richText
+            cardContent?.richText && (
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: renderTiptapToHTML(cardContent.richText),
+                }}
+              />
+            )
           )}
         </div>
       )}

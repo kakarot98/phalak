@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Button, Modal, Form, Input, message, Empty } from "antd";
-import { LinkOutlined } from "@ant-design/icons";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Button, Empty, App } from "antd";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import CanvasLayout from "@/components/layout/CanvasLayout";
@@ -14,16 +13,7 @@ import LoadingState from "@/components/ui/LoadingState";
 import ErrorBoundary from "@/components/error/ErrorBoundary";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { calculateNewZIndex } from "@/lib/collision";
-import {
-  Card,
-  parseCardContent,
-  TextCardContent,
-  LinkCardContent,
-  CardType,
-} from "@/types/card";
-import { COLORS } from "@/theme";
-
-const { TextArea } = Input;
+import { Card, CardType } from "@/types/card";
 
 interface Board {
   id: string;
@@ -45,21 +35,20 @@ interface Board {
 export default function BoardPage() {
   const params = useParams();
   const boardId = params.id as string;
+  const { message } = App.useApp();
 
   const [board, setBoard] = useState<Board | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [cardType, setCardType] = useState<string>("TEXT");
-  const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
-  const [form] = Form.useForm();
-  const contentValue = Form.useWatch("content", form);
-  const [linkForm] = Form.useForm();
-  const linkUrlValue = Form.useWatch("url", linkForm);
 
   // Inline editing state
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState<string>("");
   const [showEmptyWarning, setShowEmptyWarning] = useState(false);
+
+  // Track temporary cards that haven't been saved to backend yet
+  const [tempCardIds, setTempCardIds] = useState<Set<string>>(new Set());
+
+  // Guard to prevent duplicate saves (from blur + keyboard events)
+  const isSavingRef = useRef(false);
 
   useEffect(() => {
     fetchBoard();
@@ -87,95 +76,56 @@ export default function BoardPage() {
     }
   };
 
-  const handleCreateCard = async (values: { content: string }) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/boards/${boardId}/cards`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "TEXT",
-          content: JSON.stringify({
-            richText: values.content,
-          }),
-          positionX: 100 + Math.random() * 200,
-          positionY: 100 + Math.random() * 200,
+  const handleAddCard = useCallback(
+    (type: string) => {
+      if (type === CardType.TEXT || type === CardType.LINK) {
+        // Create temporary card for direct inline editing
+        const tempId = `temp-${Date.now()}`;
+
+        // Calculate highest z-index to place new card on top
+        const maxZIndex = board?.cards.length
+          ? Math.max(...board.cards.map((c) => c.zIndex))
+          : 0;
+
+        // Set initial content based on card type
+        const initialContent =
+          type === CardType.TEXT
+            ? JSON.stringify({ richText: "" })
+            : JSON.stringify({ url: "" });
+
+        const tempCard: Card = {
+          id: tempId,
+          type: type as CardType,
+          content: initialContent,
+          positionX: 300,
+          positionY: 200,
           width: 280,
-        }),
-      });
+          zIndex: maxZIndex + 1,
+          title: null,
+          color: null,
+          boardId: boardId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
 
-      if (res.ok) {
-        message.success("Note created successfully");
-        form.resetFields();
-        setIsModalOpen(false);
-        fetchBoard();
-      } else {
-        const error = await res.json();
-        message.error(error.error || "Failed to create note");
+        // Add temporary card to board
+        setBoard((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            cards: [...prev.cards, tempCard],
+          };
+        });
+
+        // Track as temporary
+        setTempCardIds((prev) => new Set(prev).add(tempId));
+
+        // Start editing immediately
+        setEditingCardId(tempId);
       }
-    } catch (error) {
-      message.error("Failed to create note");
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateLinkCard = async (values: { url: string }) => {
-    setLoading(true);
-    try {
-      // Validate URL format
-      let url = values.url.trim();
-
-      // Add https:// if no protocol specified
-      if (!url.startsWith("http://") && !url.startsWith("https://")) {
-        url = "https://" + url;
-      }
-
-      // Validate URL
-      try {
-        new URL(url);
-      } catch {
-        message.error("Please enter a valid URL");
-        setLoading(false);
-        return;
-      }
-
-      const res = await fetch(`/api/boards/${boardId}/cards`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "LINK",
-          content: JSON.stringify({
-            url: url,
-          }),
-          positionX: 100 + Math.random() * 200,
-          positionY: 100 + Math.random() * 200,
-          width: 280,
-        }),
-      });
-
-      if (res.ok) {
-        message.success("Link created successfully");
-        linkForm.resetFields();
-        setIsModalOpen(false);
-        fetchBoard();
-      } else {
-        const error = await res.json();
-        message.error(error.error || "Failed to create link");
-      }
-    } catch (error) {
-      message.error("Failed to create link");
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAddCard = useCallback((type: string) => {
-    setCardType(type);
-    setIsModalOpen(true);
-  }, []);
+    },
+    [boardId, board],
+  );
 
   const handleCardMove = useCallback(
     async (cardId: string, deltaX: number, deltaY: number) => {
@@ -239,81 +189,349 @@ export default function BoardPage() {
     [board],
   );
 
-  // Inline editing handlers
-  const handleStartEdit = useCallback(
-    (cardId: string, currentContent: string) => {
-      setEditingCardId(cardId);
-      setEditingContent(currentContent);
+  // Bring card to top (update z-index)
+  const bringCardToTop = useCallback(
+    async (cardId: string) => {
+      if (!board) return;
+
+      const card = board.cards.find((c) => c.id === cardId);
+      if (!card) return;
+
+      const maxZIndex = Math.max(...board.cards.map((c) => c.zIndex));
+      // Only update if not already at top
+      if (card.zIndex >= maxZIndex) return;
+
+      const newZIndex = maxZIndex + 1;
+
+      // Optimistic update
+      setBoard((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          cards: prev.cards.map((c) =>
+            c.id === cardId ? { ...c, zIndex: newZIndex } : c,
+          ),
+        };
+      });
+
+      // Update on server
+      try {
+        await fetch(`/api/cards/${cardId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ zIndex: newZIndex }),
+        });
+      } catch (error) {
+        console.error("Failed to update card z-index:", error);
+      }
     },
-    [],
+    [board],
   );
 
-  const handleEditSave = useCallback(async () => {
-    if (!editingCardId || !board) return;
+  // Inline editing handlers
+  const handleStartEdit = useCallback(
+    (cardId: string) => {
+      setEditingCardId(cardId);
+      bringCardToTop(cardId);
+    },
+    [bringCardToTop],
+  );
 
-    // Validate content is not empty
-    if (!editingContent.trim()) {
-      setShowEmptyWarning(true);
-      return;
-    }
-
-    // Find the card being edited to determine its type
-    const card = board.cards.find((c) => c.id === editingCardId);
-    if (!card) return;
-
+  // Helper to extract plain text from Tiptap JSON content
+  const extractTextFromTiptap = (content: string): string => {
     try {
-      let contentJson;
-      let successMessage;
+      const parsed = JSON.parse(content);
+      if (!parsed.content) return "";
+      return parsed.content
+        .map((node: any) =>
+          node.content
+            ? node.content.map((n: any) => n.text || "").join("")
+            : "",
+        )
+        .join("\n")
+        .trim();
+    } catch {
+      // If not JSON, return as-is
+      return content.trim();
+    }
+  };
 
-      if (card.type === CardType.LINK) {
-        // Validate URL format for link cards
-        let url = editingContent.trim();
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
-          url = "https://" + url;
-        }
+  // Helper to check if Tiptap content is empty
+  const isTiptapContentEmpty = (content: string): boolean => {
+    try {
+      const parsed = JSON.parse(content);
+      return (
+        !parsed.content ||
+        parsed.content.every(
+          (node: any) => !node.content || node.content.length === 0,
+        )
+      );
+    } catch {
+      return !content.trim();
+    }
+  };
 
-        try {
-          new URL(url);
-        } catch {
-          message.error("Please enter a valid URL");
+  const handleEditSave = useCallback(
+    async (content: string) => {
+      // Prevent duplicate saves (from blur + keyboard events firing together)
+      if (isSavingRef.current) return;
+      isSavingRef.current = true;
+
+      if (!editingCardId || !board) {
+        isSavingRef.current = false;
+        return;
+      }
+
+      // Find the card being edited to determine its type
+      const card = board.cards.find((c) => c.id === editingCardId);
+      if (!card) {
+        isSavingRef.current = false;
+        return;
+      }
+
+      const isTemporary = tempCardIds.has(editingCardId);
+
+      // Check if content is empty (both TEXT and LINK use Tiptap now)
+      const isEmpty = isTiptapContentEmpty(content);
+
+      // Handle temporary cards
+      if (isTemporary) {
+        if (isEmpty) {
+          // Remove temporary card silently (no backend call, no warning)
+          setBoard((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              cards: prev.cards.filter((c) => c.id !== editingCardId),
+            };
+          });
+          setTempCardIds((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(editingCardId);
+            return newSet;
+          });
+          setEditingCardId(null);
+          isSavingRef.current = false;
           return;
         }
 
-        contentJson = JSON.stringify({ url });
-        successMessage = "Link updated successfully";
-      } else {
-        // TEXT card
-        contentJson = JSON.stringify({ richText: editingContent });
-        successMessage = "Note updated successfully";
+        // Save temporary card to backend
+        try {
+          let contentJson;
+          if (card.type === CardType.LINK) {
+            // Extract URL from Tiptap JSON
+            let url = extractTextFromTiptap(content);
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+              url = "https://" + url;
+            }
+            try {
+              new URL(url);
+            } catch {
+              message.error("Please enter a valid URL");
+              isSavingRef.current = false;
+              return;
+            }
+            contentJson = JSON.stringify({ url });
+          } else {
+            // TEXT card
+            try {
+              const tiptapJson = JSON.parse(content);
+              contentJson = JSON.stringify({ richText: tiptapJson });
+            } catch {
+              contentJson = JSON.stringify({ richText: content });
+            }
+          }
+
+          const res = await fetch(`/api/boards/${boardId}/cards`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: card.type,
+              content: contentJson,
+              positionX: card.positionX,
+              positionY: card.positionY,
+              width: card.width,
+            }),
+          });
+
+          if (res.ok) {
+            message.success("Note created successfully");
+            // Remove temporary card
+            setBoard((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                cards: prev.cards.filter((c) => c.id !== editingCardId),
+              };
+            });
+            setTempCardIds((prev) => {
+              const newSet = new Set(prev);
+              newSet.delete(editingCardId);
+              return newSet;
+            });
+            setEditingCardId(null);
+            // Fetch to get the real card from backend
+            fetchBoard();
+          } else {
+            const error = await res.json();
+            message.error(error.error || "Failed to create note");
+          }
+        } catch (error) {
+          message.error("Failed to create note");
+          console.error(error);
+        }
+        isSavingRef.current = false;
+        return;
       }
 
-      const res = await fetch(`/api/cards/${editingCardId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: contentJson,
-        }),
-      });
+      // Handle existing cards (non-temporary)
+      if (isEmpty) {
+        // Delete existing empty card
+        try {
+          const res = await fetch(`/api/cards/${editingCardId}`, {
+            method: "DELETE",
+          });
 
-      if (res.ok) {
-        message.success(successMessage);
-        setEditingCardId(null);
-        setEditingContent("");
-        fetchBoard();
-      } else {
-        const error = await res.json();
-        message.error(error.error || "Failed to update card");
+          if (res.ok) {
+            message.success("Card deleted");
+            setBoard((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                cards: prev.cards.filter((c) => c.id !== editingCardId),
+              };
+            });
+            setEditingCardId(null);
+          } else {
+            message.error("Failed to delete card");
+          }
+        } catch (error) {
+          message.error("Failed to delete card");
+          console.error(error);
+        }
+        isSavingRef.current = false;
+        return;
       }
-    } catch (error) {
-      message.error("Failed to update card");
-      console.error(error);
-    }
-  }, [editingCardId, editingContent, board]);
 
-  const handleEditCancel = useCallback(() => {
-    setEditingCardId(null);
-    setEditingContent("");
-  }, []);
+      try {
+        let contentJson;
+        let successMessage;
+
+        if (card.type === CardType.LINK) {
+          // Extract URL from Tiptap JSON and validate
+          let url = extractTextFromTiptap(content);
+          if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            url = "https://" + url;
+          }
+
+          try {
+            new URL(url);
+          } catch {
+            message.error("Please enter a valid URL");
+            isSavingRef.current = false;
+            return;
+          }
+
+          contentJson = JSON.stringify({ url });
+          successMessage = "Link updated successfully";
+        } else {
+          // TEXT card
+          // content is already a JSON string from Tiptap, so parse it first
+          try {
+            const tiptapJson = JSON.parse(content);
+            contentJson = JSON.stringify({ richText: tiptapJson });
+          } catch {
+            // Fallback for plain text
+            contentJson = JSON.stringify({ richText: content });
+          }
+          successMessage = "Note updated successfully";
+        }
+
+        const res = await fetch(`/api/cards/${editingCardId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: contentJson,
+          }),
+        });
+
+        if (res.ok) {
+          message.success(successMessage);
+          setEditingCardId(null);
+          fetchBoard();
+        } else {
+          const error = await res.json();
+          message.error(error.error || "Failed to update card");
+        }
+      } catch (error) {
+        message.error("Failed to update card");
+        console.error(error);
+      }
+
+      isSavingRef.current = false;
+    },
+    [editingCardId, board, tempCardIds, boardId, message],
+  );
+
+  const handleEditCancel = useCallback(
+    async (content: string) => {
+      if (!editingCardId || !board) return;
+
+      const card = board.cards.find((c) => c.id === editingCardId);
+      if (!card) return;
+
+      const isTemporary = tempCardIds.has(editingCardId);
+
+      // Check if current editing content is empty (both TEXT and LINK use Tiptap now)
+      const isEmpty = isTiptapContentEmpty(content);
+
+      // If empty, delete the card
+      if (isEmpty) {
+        if (isTemporary) {
+          // Remove temporary card locally
+          setBoard((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              cards: prev.cards.filter((c) => c.id !== editingCardId),
+            };
+          });
+          setTempCardIds((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(editingCardId);
+            return newSet;
+          });
+        } else {
+          // Delete existing card from backend
+          try {
+            const res = await fetch(`/api/cards/${editingCardId}`, {
+              method: "DELETE",
+            });
+
+            if (res.ok) {
+              message.success("Card deleted");
+              setBoard((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  cards: prev.cards.filter((c) => c.id !== editingCardId),
+                };
+              });
+            } else {
+              message.error("Failed to delete card");
+            }
+          } catch (error) {
+            message.error("Failed to delete card");
+            console.error(error);
+          }
+        }
+      }
+
+      // Clear editing state
+      setEditingCardId(null);
+    },
+    [editingCardId, tempCardIds, board, message],
+  );
 
   if (fetchLoading) {
     return (
@@ -354,21 +572,6 @@ export default function BoardPage() {
           {board.cards.map((card) => {
             const isCardEditing = editingCardId === card.id;
 
-            // Parse content based on card type
-            const textContent =
-              card.type === CardType.TEXT && card.content
-                ? parseCardContent<TextCardContent>({
-                    content: card.content,
-                  } as any)
-                : null;
-
-            const linkContent =
-              card.type === CardType.LINK && card.content
-                ? parseCardContent<LinkCardContent>({
-                    content: card.content,
-                  } as any)
-                : null;
-
             return (
               <CanvasCard
                 key={card.id}
@@ -378,6 +581,7 @@ export default function BoardPage() {
                 width={card.width}
                 zIndex={card.zIndex}
                 isEditing={isCardEditing}
+                onClick={() => bringCardToTop(card.id)}
               >
                 {card.type === CardType.TEXT && (
                   <TextCard
@@ -385,13 +589,9 @@ export default function BoardPage() {
                     content={card.content}
                     color={card.color}
                     isEditing={isCardEditing}
-                    editingContent={editingContent}
-                    onEditingContentChange={setEditingContent}
                     onEditSave={handleEditSave}
                     onEditCancel={handleEditCancel}
-                    onStartEdit={() =>
-                      handleStartEdit(card.id, textContent?.richText || "")
-                    }
+                    onStartEdit={() => handleStartEdit(card.id)}
                   />
                 )}
                 {card.type === CardType.LINK && (
@@ -399,131 +599,15 @@ export default function BoardPage() {
                     content={card.content}
                     color={card.color}
                     isEditing={isCardEditing}
-                    editingContent={editingContent}
-                    onEditingContentChange={setEditingContent}
                     onEditSave={handleEditSave}
                     onEditCancel={handleEditCancel}
-                    onStartEdit={() =>
-                      handleStartEdit(card.id, linkContent?.url || "")
-                    }
+                    onStartEdit={() => handleStartEdit(card.id)}
                   />
                 )}
               </CanvasCard>
             );
           })}
         </BoardCanvas>
-
-        {/* Create Note Modal */}
-        {cardType === CardType.TEXT && (
-          <Modal
-            title="Create Note"
-            open={isModalOpen}
-            onCancel={() => setIsModalOpen(false)}
-            footer={null}
-            destroyOnHidden
-          >
-            <div
-              style={{
-                marginBottom: 24,
-                color: COLORS.text.primary,
-                lineHeight: 1.6,
-              }}
-            >
-              <Form form={form} layout="vertical" onFinish={handleCreateCard}>
-                <Form.Item
-                  name="content"
-                  rules={[
-                    { required: true, message: "Please enter note content" },
-                  ]}
-                >
-                  <TextArea
-                    rows={6}
-                    placeholder="Type your note here..."
-                    autoFocus
-                  />
-                </Form.Item>
-                <Form.Item style={{ marginBottom: 0 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      gap: 8,
-                    }}
-                  >
-                    <Button onClick={() => setIsModalOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      type="primary"
-                      htmlType="submit"
-                      loading={loading}
-                      disabled={!contentValue?.trim()}
-                    >
-                      Create
-                    </Button>
-                  </div>
-                </Form.Item>
-              </Form>
-            </div>
-          </Modal>
-        )}
-
-        {/* Create Link Modal */}
-        {cardType === CardType.LINK && (
-          <Modal
-            title="Create Link"
-            open={isModalOpen}
-            onCancel={() => setIsModalOpen(false)}
-            footer={null}
-            destroyOnHidden
-          >
-            <div
-              style={{
-                marginBottom: 24,
-                color: COLORS.text.primary,
-                lineHeight: 1.6,
-              }}
-            >
-              <Form
-                form={linkForm}
-                layout="vertical"
-                onFinish={handleCreateLinkCard}
-              >
-                <Form.Item
-                  name="url"
-                  rules={[{ required: true, message: "Please enter a URL" }]}
-                >
-                  <Input
-                    placeholder="https://example.com"
-                    autoFocus
-                    prefix={<LinkOutlined style={{ color: "#1890ff" }} />}
-                  />
-                </Form.Item>
-                <Form.Item style={{ marginBottom: 0 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      gap: 8,
-                    }}
-                  >
-                    <Button onClick={() => setIsModalOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      type="primary"
-                      htmlType="submit"
-                      loading={loading}
-                      disabled={!linkUrlValue?.trim()}
-                    >
-                      Create
-                    </Button>
-                  </div>
-                </Form.Item>
-              </Form>
-            </div>
-          </Modal>
-        )}
 
         {/* Empty Note Warning Modal */}
         <ConfirmationModal

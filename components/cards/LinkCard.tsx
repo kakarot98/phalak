@@ -1,20 +1,18 @@
 "use client";
 
-import { Card, Input } from "antd";
+import { Card } from "antd";
 import { LinkOutlined } from "@ant-design/icons";
 import { parseCardContent } from "@/types/card";
 import type { LinkCardContent } from "@/types/card";
-import { KeyboardEvent } from "react";
+import TiptapEditor from "@/components/editor/TiptapEditor";
 
 interface LinkCardProps {
   content?: string | null;
   color?: string | null;
   // Inline editing props
   isEditing?: boolean;
-  editingContent?: string;
-  onEditingContentChange?: (content: string) => void;
-  onEditSave?: () => void;
-  onEditCancel?: () => void;
+  onEditSave?: (content: string) => void;
+  onEditCancel?: (content: string) => void;
   onStartEdit?: () => void;
 }
 
@@ -22,8 +20,6 @@ export default function LinkCard({
   content,
   color,
   isEditing = false,
-  editingContent = "",
-  onEditingContentChange,
   onEditSave,
   onEditCancel,
   onStartEdit,
@@ -35,31 +31,11 @@ export default function LinkCard({
 
   if (!linkContent?.url && !isEditing) return null;
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      onEditSave?.();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      onEditCancel?.();
-    }
-  };
-
-  const handleBlur = () => {
-    // Save on blur (click outside)
-    onEditSave?.();
-  };
-
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (!isEditing) {
       e.stopPropagation();
       onStartEdit?.();
     }
-  };
-
-  const handleInputClick = (e: React.MouseEvent) => {
-    // Prevent event propagation when clicking input
-    e.stopPropagation();
   };
 
   const handleLinkClick = (e: React.MouseEvent) => {
@@ -105,7 +81,7 @@ export default function LinkCard({
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           gap: "8px",
         }}
       >
@@ -114,24 +90,17 @@ export default function LinkCard({
             fontSize: "16px",
             color: "#1890ff",
             flexShrink: 0,
+            marginTop: isEditing ? "4px" : "2px",
           }}
         />
         {isEditing ? (
-          <Input
-            value={editingContent}
-            onChange={(e) => onEditingContentChange?.(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={handleBlur}
-            onClick={handleInputClick}
-            autoFocus
-            placeholder="https://example.com"
-            // prefix={<LinkOutlined style={{ color: "#1890ff" }} />}
-            style={{
-              fontSize: "13px",
-              lineHeight: "1.6",
-              flex: 1,
-            }}
-          />
+          <div style={{ flex: 1 }}>
+            <TiptapEditor
+              content={linkContent?.url || ""}
+              onSave={(newContent) => onEditSave?.(newContent)}
+              onCancel={(newContent) => onEditCancel?.(newContent)}
+            />
+          </div>
         ) : (
           <a
             href={linkContent?.url}
@@ -143,8 +112,11 @@ export default function LinkCard({
               lineHeight: "1.6",
               color: "#1890ff",
               textDecoration: "underline",
-              wordBreak: "break-all",
               cursor: "pointer",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              display: "block",
             }}
           >
             {linkContent?.url}

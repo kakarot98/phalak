@@ -12,6 +12,7 @@ interface CanvasCardProps {
   children: ReactNode;
   zIndex?: number;
   isEditing?: boolean;
+  onClick?: () => void;
 }
 
 export default function CanvasCard({
@@ -22,6 +23,7 @@ export default function CanvasCard({
   children,
   zIndex = 0,
   isEditing = false,
+  onClick,
 }: CanvasCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
@@ -33,8 +35,7 @@ export default function CanvasCard({
     position: "absolute",
     left: `${x}px`,
     top: `${y}px`,
-    maxWidth: `${width}px`,
-    minWidth: "60px",
+    width: `${width}px`,
     transform: CSS.Translate.toString(transform),
     zIndex: isDragging ? 1000 : zIndex,
     cursor: isEditing ? "default" : isDragging ? "grabbing" : "grab",
@@ -42,8 +43,18 @@ export default function CanvasCard({
     transition: isDragging ? "none" : "opacity 0.2s",
   };
 
+  const handleMouseDown = () => {
+    onClick?.();
+  };
+
   return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      onMouseDown={handleMouseDown}
+    >
       {children}
     </div>
   );
