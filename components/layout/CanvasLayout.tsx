@@ -23,9 +23,12 @@ interface CanvasLayoutProps {
   children: ReactNode;
   boardName: string;
   boardColor?: string;
+  project?: { id: string; name: string } | null;
+  folder?: { id: string; name: string } | null;
   onAddCard?: (type: string) => void;
   onCreateCardAtPosition?: (type: string, x: number, y: number) => void;
   onCardMove?: (cardId: string, deltaX: number, deltaY: number) => void;
+  onDeleteCard?: (cardId: string) => void;
   scale?: number;
 }
 
@@ -66,9 +69,12 @@ export default function CanvasLayout({
   children,
   boardName,
   boardColor,
+  project,
+  folder,
   onAddCard,
   onCreateCardAtPosition,
   onCardMove,
+  onDeleteCard,
   scale = 1,
 }: CanvasLayoutProps) {
   const [activeDragType, setActiveDragType] = useState<string | null>(null);
@@ -132,12 +138,21 @@ export default function CanvasLayout({
         return;
       }
 
+      // Check if card is dropped on trash
+      if (over?.id === "trash-droppable") {
+        // Delete the card
+        if (onDeleteCard) {
+          onDeleteCard(active.id as string);
+        }
+        return;
+      }
+
       // Handle existing card move
       if (onCardMove && (delta.x !== 0 || delta.y !== 0)) {
         onCardMove(active.id as string, delta.x / scale, delta.y / scale);
       }
     },
-    [onCreateCardAtPosition, onCardMove, scale],
+    [onCreateCardAtPosition, onCardMove, onDeleteCard, scale],
   );
 
   return (
@@ -147,12 +162,18 @@ export default function CanvasLayout({
       onDragEnd={handleDragEnd}
     >
       <Layout style={{ minHeight: "100vh", background: "#fffef6" }}>
-        <CanvasHeader boardName={boardName} boardColor={boardColor} />
+        <CanvasHeader
+          boardName={boardName}
+          boardColor={boardColor}
+          project={project}
+          folder={folder}
+        />
         <CanvasToolbar onAddCard={onAddCard} />
         <Content
           style={{
             position: "relative",
             minHeight: "calc(100vh - 95px)",
+            marginTop: 95, // Account for fixed header
             background: "#fffef6",
             backgroundImage:
               "radial-gradient(circle, #d1d1d1 1px, transparent 1px)",

@@ -34,16 +34,19 @@ export default function BoardCanvas({
     onScaleChange?.(scale);
   }, [scale, onScaleChange]);
 
-  // Handle mouse wheel for zoom
+  // Handle mouse wheel for zoom and pan
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
+      // Prevent default browser behavior (back/forward navigation on trackpad swipe)
+      e.preventDefault();
+
       if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
+        // Zoom with Ctrl/Cmd + scroll
         const delta = e.deltaY * -0.01;
         const newScale = Math.min(Math.max(0.5, scale + delta), 2);
         setScale(newScale);
       } else {
-        // Scroll for pan
+        // Pan with scroll (trackpad two-finger swipe)
         setPan((prev) => ({
           x: prev.x - e.deltaX,
           y: prev.y - e.deltaY,

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Tooltip } from "antd";
-import { useDraggable } from "@dnd-kit/core";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import {
   FileTextOutlined,
   LinkOutlined,
@@ -154,6 +154,66 @@ function ToolButton({ icon, label, onClick, active = false }: ToolButtonProps) {
   );
 }
 
+// Droppable trash button for deleting cards
+function DroppableTrashButton() {
+  const [isHovered, setIsHovered] = useState(false);
+
+  const { setNodeRef, isOver } = useDroppable({
+    id: "trash-droppable",
+    data: {
+      type: "trash",
+    },
+  });
+
+  return (
+    <Tooltip title={isOver ? "Drop to delete" : "Trash"} placement="bottom">
+      <div
+        ref={setNodeRef}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          cursor: "pointer",
+          padding: "6px 8.75px",
+          borderRadius: 3,
+          background: isOver
+            ? "#ffebee"
+            : isHovered
+              ? "#f0f0f0"
+              : "transparent",
+          transform: isOver || isHovered ? "translateY(-1px)" : "translateY(0)",
+          transition: "all 0.15s ease",
+          outline: isOver ? "2px dashed #f44336" : "none",
+          outlineOffset: "-2px",
+        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <div
+          style={{
+            fontSize: 24,
+            color: isOver ? "#f44336" : "#323b4a",
+            marginBottom: 4,
+            transition: "color 0.15s ease",
+          }}
+        >
+          <DeleteOutlined />
+        </div>
+        <span
+          style={{
+            fontSize: 9,
+            color: isOver ? "#f44336" : "#323b4a",
+            fontFamily: "Inter, sans-serif",
+            transition: "color 0.15s ease",
+          }}
+        >
+          Trash
+        </span>
+      </div>
+    </Tooltip>
+  );
+}
+
 export default function CanvasToolbar({ onAddCard }: CanvasToolbarProps) {
   return (
     <div
@@ -215,7 +275,7 @@ export default function CanvasToolbar({ onAddCard }: CanvasToolbarProps) {
       />
       <ToolButton icon={<UploadOutlined />} label="Upload" />
       <ToolButton icon={<EditOutlined />} label="Draw" />
-      <ToolButton icon={<DeleteOutlined />} label="Trash" />
+      <DroppableTrashButton />
     </div>
   );
 }

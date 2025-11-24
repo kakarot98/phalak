@@ -526,6 +526,65 @@ export default function BoardPage() {
     [editingCardId, tempCardIds, board, message],
   );
 
+  // Handle card deletion (drag to trash)
+  const handleDeleteCard = useCallback(
+    async (cardId: string) => {
+      const currentBoard = boardRef.current;
+      if (!currentBoard) return;
+
+      const card = currentBoard.cards.find((c) => c.id === cardId);
+      if (!card) return;
+
+      // Check if it's a temporary card (not saved to backend yet)
+      const isTemporary = tempCardIds.has(cardId);
+
+      // Optimistic update - remove from UI immediately
+      setBoard((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          cards: prev.cards.filter((c) => c.id !== cardId),
+        };
+      });
+
+      // Clear editing state if this card was being edited
+      if (editingCardId === cardId) {
+        setEditingCardId(null);
+      }
+
+      if (isTemporary) {
+        // Just remove from temp tracking, no backend call needed
+        setTempCardIds((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(cardId);
+          return newSet;
+        });
+        message.success("Card deleted");
+        return;
+      }
+
+      // Delete from backend
+      try {
+        const res = await fetch(`/api/cards/${cardId}`, {
+          method: "DELETE",
+        });
+
+        if (res.ok) {
+          message.success("Card deleted");
+        } else {
+          // Revert on error - re-fetch board to restore state
+          message.error("Failed to delete card");
+          fetchBoard();
+        }
+      } catch (error) {
+        console.error("Failed to delete card:", error);
+        message.error("Failed to delete card");
+        fetchBoard();
+      }
+    },
+    [tempCardIds, editingCardId, message],
+  );
+
   // Memoized callback maps for stable references - only recreate when card IDs change
   const cardCallbacks = useMemo(() => {
     if (!board) return {};
@@ -587,9 +646,12 @@ export default function BoardPage() {
     <ErrorBoundary>
       <CanvasLayout
         boardName={board.name}
+        project={board.project}
+        folder={board.folder}
         onAddCard={handleAddCard}
         onCreateCardAtPosition={handleCreateCardAtPosition}
         onCardMove={handleCardMove}
+        onDeleteCard={handleDeleteCard}
         scale={canvasScale}
       >
         {/* Canvas */}
