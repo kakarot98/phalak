@@ -32,7 +32,7 @@ interface CanvasLayoutProps {
   scale?: number;
 }
 
-// Ghost card preview component for drag overlay
+// Ghost card preview component for drag overlay (new card from toolbar)
 function GhostCard({ type }: { type: string }) {
   const icons: Record<string, React.ReactNode> = {
     TEXT: <FileTextOutlined style={{ fontSize: 20, color: "#666" }} />,
@@ -48,7 +48,7 @@ function GhostCard({ type }: { type: string }) {
     <Card
       style={{
         width: 280,
-        opacity: 0.9,
+        opacity: 0.85,
         boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
         borderRadius: 6,
         pointerEvents: "none",
@@ -60,6 +60,36 @@ function GhostCard({ type }: { type: string }) {
         <span style={{ color: "#666", fontSize: 13 }}>
           {labels[type] || "New Card"}
         </span>
+      </div>
+    </Card>
+  );
+}
+
+// Drag preview component for existing cards
+function DragPreviewCard() {
+  return (
+    <Card
+      style={{
+        width: 280,
+        opacity: 0.85,
+        boxShadow: "0 12px 28px rgba(0,0,0,0.2)",
+        borderRadius: 6,
+        pointerEvents: "none",
+        background: "#fff",
+      }}
+      styles={{ body: { padding: "16px" } }}
+    >
+      <div
+        style={{
+          height: 60,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#999",
+          fontSize: 13,
+        }}
+      >
+        Moving card...
       </div>
     </Card>
   );
@@ -78,6 +108,7 @@ export default function CanvasLayout({
   scale = 1,
 }: CanvasLayoutProps) {
   const [activeDragType, setActiveDragType] = useState<string | null>(null);
+  const [activeDragCardId, setActiveDragCardId] = useState<string | null>(null);
 
   // Configure sensors with activation constraint
   // This allows for small movements without starting drag (distinguishes click vs drag)
@@ -94,6 +125,9 @@ export default function CanvasLayout({
     // Check if this is a toolbar item being dragged
     if (active.data.current?.type === "toolbar-item") {
       setActiveDragType(active.data.current.cardType);
+    } else {
+      // This is an existing card being dragged
+      setActiveDragCardId(active.id as string);
     }
   }, []);
 
@@ -103,6 +137,7 @@ export default function CanvasLayout({
 
       // Reset drag state
       setActiveDragType(null);
+      setActiveDragCardId(null);
 
       // Check if this is a toolbar item being dropped
       if (active.data.current?.type === "toolbar-item") {
@@ -204,9 +239,13 @@ export default function CanvasLayout({
         </Content>
       </Layout>
 
-      {/* Drag Overlay - shows ghost card while dragging from toolbar */}
-      <DragOverlay dropAnimation={null}>
-        {activeDragType ? <GhostCard type={activeDragType} /> : null}
+      {/* Drag Overlay - shows preview while dragging (above toolbar z-index 1000) */}
+      <DragOverlay dropAnimation={null} style={{ zIndex: 1002 }}>
+        {activeDragType ? (
+          <GhostCard type={activeDragType} />
+        ) : activeDragCardId ? (
+          <DragPreviewCard />
+        ) : null}
       </DragOverlay>
     </DndContext>
   );
