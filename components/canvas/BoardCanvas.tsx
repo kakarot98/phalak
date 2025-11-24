@@ -1,24 +1,38 @@
 "use client";
 
-import { useState, useRef, useCallback, ReactNode } from "react";
-import { DndContext, DragEndEvent } from "@dnd-kit/core";
+import { useState, useRef, useCallback, ReactNode, useEffect } from "react";
+import { useDroppable } from "@dnd-kit/core";
 
 interface BoardCanvasProps {
   children: ReactNode;
-  onCardMove?: (cardId: string, x: number, y: number) => void;
-  onAddCard?: (type: string) => void;
+  onScaleChange?: (scale: number) => void;
 }
 
 export default function BoardCanvas({
   children,
-  onCardMove,
-  onAddCard,
+  onScaleChange,
 }: BoardCanvasProps) {
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  // Make the canvas a droppable area
+  const { setNodeRef, isOver } = useDroppable({
+    id: "canvas-droppable",
+    data: {
+      // Pass canvas info for position calculation
+      pan,
+      scale,
+      rect: canvasRef.current?.getBoundingClientRect(),
+    },
+  });
+
+  // Notify parent of scale changes
+  useEffect(() => {
+    onScaleChange?.(scale);
+  }, [scale, onScaleChange]);
 
   // Handle mouse wheel for zoom
   const handleWheel = useCallback(
@@ -72,21 +86,20 @@ export default function BoardCanvas({
     setIsPanning(false);
   }, []);
 
-  // Handle card drag end
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, delta } = event;
-      if (onCardMove && delta.x !== 0 && delta.y !== 0) {
-        // Call the callback with card ID and delta
-        onCardMove(active.id as string, delta.x / scale, delta.y / scale);
-      }
+  // Combine refs for both canvas ref and droppable
+  const setRefs = useCallback(
+    (node: HTMLDivElement | null) => {
+      // Set the canvas ref
+      (canvasRef as any).current = node;
+      // Set the droppable ref
+      setNodeRef(node);
     },
-    [onCardMove, scale],
+    [setNodeRef],
   );
 
   return (
     <div
-      ref={canvasRef}
+      ref={setRefs}
       className="board-canvas"
       style={{
         width: "100%",
@@ -95,6 +108,9 @@ export default function BoardCanvas({
         position: "relative",
         background: "#f7f5f2", // Milanote beige background
         cursor: isPanning ? "grabbing" : "default",
+        // Visual feedback when dragging over
+        outline: isOver ? "2px dashed #1890ff" : "none",
+        outlineOffset: "-2px",
       }}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
@@ -103,21 +119,19 @@ export default function BoardCanvas({
       onMouseLeave={handleMouseUp}
     >
       {/* Canvas Content with Pan/Zoom Transform */}
-      <DndContext onDragEnd={handleDragEnd}>
-        <div
-          className="canvas-background"
-          style={{
-            width: "100%",
-            height: "100%",
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
-            transformOrigin: "0 0",
-            position: "relative",
-            transition: isPanning ? "none" : "transform 0.1s ease-out",
-          }}
-        >
-          {children}
-        </div>
-      </DndContext>
+      <div
+        className="canvas-background"
+        style={{
+          width: "100%",
+          height: "100%",
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+          transformOrigin: "0 0",
+          position: "relative",
+          transition: isPanning ? "none" : "transform 0.1s ease-out",
+        }}
+      >
+        {children}
+      </div>
 
       {/* Zoom Indicator */}
       <div

@@ -48,6 +48,9 @@ export default function BoardPage() {
   // Track temporary cards that haven't been saved to backend yet
   const [tempCardIds, setTempCardIds] = useState<Set<string>>(new Set());
 
+  // Track canvas scale for coordinate calculations
+  const [canvasScale, setCanvasScale] = useState(1);
+
   // Guard to prevent duplicate saves (from blur + keyboard events)
   const isSavingRef = useRef(false);
 
@@ -135,6 +138,57 @@ export default function BoardPage() {
       }
     },
     [boardId, board],
+  );
+
+  // Create card at specific position (for drag-drop from toolbar)
+  const handleCreateCardAtPosition = useCallback(
+    (type: string, x: number, y: number) => {
+      if (type === CardType.TEXT || type === CardType.LINK) {
+        // Create temporary card for direct inline editing
+        const tempId = `temp-${Date.now()}`;
+
+        // Calculate highest z-index to place new card on top
+        const currentBoard = boardRef.current;
+        const maxZIndex = currentBoard?.cards.length
+          ? Math.max(...currentBoard.cards.map((c) => c.zIndex))
+          : 0;
+
+        // Get card type configuration
+        const cardConfig = getCardTypeConfig(type as CardType);
+        const initialContent = cardConfig.initialContent();
+
+        const tempCard: Card = {
+          id: tempId,
+          type: type as CardType,
+          content: initialContent,
+          positionX: Math.max(0, x - 140), // Center the card on drop point (card width is ~280)
+          positionY: Math.max(0, y - 20), // Slight offset from cursor
+          width: 280,
+          zIndex: maxZIndex + 1,
+          title: null,
+          color: null,
+          boardId: boardId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        // Add temporary card to board
+        setBoard((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            cards: [...prev.cards, tempCard],
+          };
+        });
+
+        // Track as temporary
+        setTempCardIds((prev) => new Set(prev).add(tempId));
+
+        // Start editing immediately
+        setEditingCardId(tempId);
+      }
+    },
+    [boardId],
   );
 
   // Stable callback using ref - prevents race conditions on rapid moves
@@ -531,9 +585,15 @@ export default function BoardPage() {
 
   return (
     <ErrorBoundary>
-      <CanvasLayout boardName={board.name} onAddCard={handleAddCard}>
+      <CanvasLayout
+        boardName={board.name}
+        onAddCard={handleAddCard}
+        onCreateCardAtPosition={handleCreateCardAtPosition}
+        onCardMove={handleCardMove}
+        scale={canvasScale}
+      >
         {/* Canvas */}
-        <BoardCanvas onCardMove={handleCardMove}>
+        <BoardCanvas onScaleChange={setCanvasScale}>
           {board.cards.map((card) => {
             const isCardEditing = editingCardId === card.id;
             const callbacks = cardCallbacks[card.id];
