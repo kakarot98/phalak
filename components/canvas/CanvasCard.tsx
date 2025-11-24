@@ -2,7 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { ReactNode } from "react";
+import { ReactNode, memo } from "react";
 
 interface CanvasCardProps {
   id: string;
@@ -15,7 +15,7 @@ interface CanvasCardProps {
   onClick?: () => void;
 }
 
-export default function CanvasCard({
+function CanvasCard({
   id,
   x,
   y,
@@ -37,10 +37,14 @@ export default function CanvasCard({
     top: `${y}px`,
     width: `${width}px`,
     transform: CSS.Translate.toString(transform),
-    zIndex: isDragging ? 1000 : zIndex,
+    zIndex: zIndex, // DragOverlay handles the floating preview
     cursor: isEditing ? "default" : isDragging ? "grabbing" : "grab",
-    opacity: isDragging ? 0.8 : 1,
+    // When dragging, show a dimmed placeholder at original position
+    opacity: isDragging ? 0.3 : 1,
     transition: isDragging ? "none" : "opacity 0.2s",
+    // Add dashed outline when dragging to show placeholder
+    outline: isDragging ? "2px dashed #ccc" : "none",
+    outlineOffset: isDragging ? "2px" : "0",
   };
 
   const handleMouseDown = () => {
@@ -59,3 +63,5 @@ export default function CanvasCard({
     </div>
   );
 }
+
+export default memo(CanvasCard);

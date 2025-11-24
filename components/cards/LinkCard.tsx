@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Card } from "antd";
 import { LinkOutlined } from "@ant-design/icons";
 import { parseCardContent } from "@/types/card";
@@ -16,7 +17,7 @@ interface LinkCardProps {
   onStartEdit?: () => void;
 }
 
-export default function LinkCard({
+function LinkCard({
   content,
   color,
   isEditing = false,
@@ -126,3 +127,5 @@ export default function LinkCard({
     </Card>
   );
 }
+
+export default memo(LinkCard);

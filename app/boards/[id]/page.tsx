@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Button, Empty, App } from "antd";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -14,6 +14,7 @@ import ErrorBoundary from "@/components/error/ErrorBoundary";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { calculateNewZIndex } from "@/lib/collision";
 import { Card, CardType } from "@/types/card";
+import { getCardTypeConfig, isTiptapContentEmpty } from "@/lib/cardTypes";
 
 interface Board {
   id: string;
@@ -47,8 +48,22 @@ export default function BoardPage() {
   // Track temporary cards that haven't been saved to backend yet
   const [tempCardIds, setTempCardIds] = useState<Set<string>>(new Set());
 
+  // Track canvas scale for coordinate calculations
+  const [canvasScale, setCanvasScale] = useState(1);
+
   // Guard to prevent duplicate saves (from blur + keyboard events)
   const isSavingRef = useRef(false);
+
+  // Track pending move operations per card to prevent race conditions
+  const pendingMovesRef = useRef<Map<string, boolean>>(new Map());
+
+  // Ref to access board state without creating callback dependencies
+  const boardRef = useRef<Board | null>(null);
+
+  // Keep boardRef in sync with board state
+  useEffect(() => {
+    boardRef.current = board;
+  }, [board]);
 
   useEffect(() => {
     fetchBoard();
@@ -87,11 +102,9 @@ export default function BoardPage() {
           ? Math.max(...board.cards.map((c) => c.zIndex))
           : 0;
 
-        // Set initial content based on card type
-        const initialContent =
-          type === CardType.TEXT
-            ? JSON.stringify({ richText: "" })
-            : JSON.stringify({ url: "" });
+        // Get card type configuration
+        const cardConfig = getCardTypeConfig(type as CardType);
+        const initialContent = cardConfig.initialContent();
 
         const tempCard: Card = {
           id: tempId,
@@ -127,50 +140,113 @@ export default function BoardPage() {
     [boardId, board],
   );
 
+  // Create card at specific position (for drag-drop from toolbar)
+  const handleCreateCardAtPosition = useCallback(
+    (type: string, x: number, y: number) => {
+      if (type === CardType.TEXT || type === CardType.LINK) {
+        // Create temporary card for direct inline editing
+        const tempId = `temp-${Date.now()}`;
+
+        // Calculate highest z-index to place new card on top
+        const currentBoard = boardRef.current;
+        const maxZIndex = currentBoard?.cards.length
+          ? Math.max(...currentBoard.cards.map((c) => c.zIndex))
+          : 0;
+
+        // Get card type configuration
+        const cardConfig = getCardTypeConfig(type as CardType);
+        const initialContent = cardConfig.initialContent();
+
+        const tempCard: Card = {
+          id: tempId,
+          type: type as CardType,
+          content: initialContent,
+          positionX: Math.max(0, x - 140), // Center the card on drop point (card width is ~280)
+          positionY: Math.max(0, y - 20), // Slight offset from cursor
+          width: 280,
+          zIndex: maxZIndex + 1,
+          title: null,
+          color: null,
+          boardId: boardId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        // Add temporary card to board
+        setBoard((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            cards: [...prev.cards, tempCard],
+          };
+        });
+
+        // Track as temporary
+        setTempCardIds((prev) => new Set(prev).add(tempId));
+
+        // Start editing immediately
+        setEditingCardId(tempId);
+      }
+    },
+    [boardId],
+  );
+
+  // Stable callback using ref - prevents race conditions on rapid moves
   const handleCardMove = useCallback(
     async (cardId: string, deltaX: number, deltaY: number) => {
-      // Find the card
-      const card = board?.cards.find((c) => c.id === cardId);
-      if (!card || !board) return;
+      const currentBoard = boardRef.current;
+      if (!currentBoard) return;
 
-      // Calculate new position
-      const newX = card.positionX + deltaX;
-      const newY = card.positionY + deltaY;
-
-      // Create temporary card with new position for collision check
-      const movedCard = { ...card, positionX: newX, positionY: newY };
-
-      // Check if zIndex needs updating based on overlapping cards
-      const newZIndex = calculateNewZIndex(movedCard, board.cards);
-
-      // Prepare update data
-      const updateData: {
-        positionX: number;
-        positionY: number;
-        zIndex?: number;
-      } = {
-        positionX: newX,
-        positionY: newY,
-      };
-
-      // Include zIndex if it needs to be updated
-      if (newZIndex !== null) {
-        updateData.zIndex = newZIndex;
+      // Skip if a move is already in progress for this card
+      if (pendingMovesRef.current.get(cardId)) {
+        return;
       }
 
-      // Optimistic update - include zIndex if changed
-      setBoard((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          cards: prev.cards.map((c) =>
-            c.id === cardId ? { ...c, ...updateData } : c,
-          ),
-        };
-      });
+      // Find the card from current board state
+      const card = currentBoard.cards.find((c) => c.id === cardId);
+      if (!card) return;
 
-      // Update on server - include zIndex if changed
+      // Mark move as in progress
+      pendingMovesRef.current.set(cardId, true);
+
       try {
+        // Calculate new position
+        const newX = card.positionX + deltaX;
+        const newY = card.positionY + deltaY;
+
+        // Create temporary card with new position for collision check
+        const movedCard = { ...card, positionX: newX, positionY: newY };
+
+        // Check if zIndex needs updating based on overlapping cards
+        const newZIndex = calculateNewZIndex(movedCard, currentBoard.cards);
+
+        // Prepare update data
+        const updateData: {
+          positionX: number;
+          positionY: number;
+          zIndex?: number;
+        } = {
+          positionX: newX,
+          positionY: newY,
+        };
+
+        // Include zIndex if it needs to be updated
+        if (newZIndex !== null) {
+          updateData.zIndex = newZIndex;
+        }
+
+        // Optimistic update - include zIndex if changed
+        setBoard((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            cards: prev.cards.map((c) =>
+              c.id === cardId ? { ...c, ...updateData } : c,
+            ),
+          };
+        });
+
+        // Update on server
         const res = await fetch(`/api/cards/${cardId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -182,94 +258,65 @@ export default function BoardPage() {
         }
       } catch (error) {
         console.error("Failed to update card position:", error);
-        // Revert on error
-        fetchBoard();
-      }
-    },
-    [board],
-  );
-
-  // Bring card to top (update z-index)
-  const bringCardToTop = useCallback(
-    async (cardId: string) => {
-      if (!board) return;
-
-      const card = board.cards.find((c) => c.id === cardId);
-      if (!card) return;
-
-      const maxZIndex = Math.max(...board.cards.map((c) => c.zIndex));
-      // Only update if not already at top
-      if (card.zIndex >= maxZIndex) return;
-
-      const newZIndex = maxZIndex + 1;
-
-      // Optimistic update
-      setBoard((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          cards: prev.cards.map((c) =>
-            c.id === cardId ? { ...c, zIndex: newZIndex } : c,
-          ),
-        };
-      });
-
-      // Update on server
-      try {
-        await fetch(`/api/cards/${cardId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ zIndex: newZIndex }),
+        // Revert on error - use functional update to get fresh state
+        setBoard((prev) => {
+          if (!prev) return prev;
+          // Keep current state, error will be logged but UI stays responsive
+          return prev;
         });
-      } catch (error) {
-        console.error("Failed to update card z-index:", error);
+      } finally {
+        // Always clear pending status
+        pendingMovesRef.current.delete(cardId);
       }
     },
-    [board],
+    [], // No dependencies - uses ref
   );
 
-  // Inline editing handlers
+  // Bring card to top (update z-index) - stable callback using ref
+  const bringCardToTop = useCallback(async (cardId: string) => {
+    const currentBoard = boardRef.current;
+    if (!currentBoard) return;
+
+    const card = currentBoard.cards.find((c) => c.id === cardId);
+    if (!card) return;
+
+    const maxZIndex = Math.max(...currentBoard.cards.map((c) => c.zIndex));
+    // Only update if not already at top
+    if (card.zIndex >= maxZIndex) return;
+
+    const newZIndex = maxZIndex + 1;
+
+    // Optimistic update
+    setBoard((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        cards: prev.cards.map((c) =>
+          c.id === cardId ? { ...c, zIndex: newZIndex } : c,
+        ),
+      };
+    });
+
+    // Update on server
+    try {
+      await fetch(`/api/cards/${cardId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zIndex: newZIndex }),
+      });
+    } catch (error) {
+      console.error("Failed to update card z-index:", error);
+    }
+  }, []); // No dependencies - uses ref
+
+  // Inline editing handlers - stable callback
   const handleStartEdit = useCallback(
     (cardId: string) => {
       setEditingCardId(cardId);
       bringCardToTop(cardId);
     },
     [bringCardToTop],
-  );
-
-  // Helper to extract plain text from Tiptap JSON content
-  const extractTextFromTiptap = (content: string): string => {
-    try {
-      const parsed = JSON.parse(content);
-      if (!parsed.content) return "";
-      return parsed.content
-        .map((node: any) =>
-          node.content
-            ? node.content.map((n: any) => n.text || "").join("")
-            : "",
-        )
-        .join("\n")
-        .trim();
-    } catch {
-      // If not JSON, return as-is
-      return content.trim();
-    }
-  };
-
-  // Helper to check if Tiptap content is empty
-  const isTiptapContentEmpty = (content: string): boolean => {
-    try {
-      const parsed = JSON.parse(content);
-      return (
-        !parsed.content ||
-        parsed.content.every(
-          (node: any) => !node.content || node.content.length === 0,
-        )
-      );
-    } catch {
-      return !content.trim();
-    }
-  };
+  ); // bringCardToTop is now stable
 
   const handleEditSave = useCallback(
     async (content: string) => {
@@ -277,86 +324,20 @@ export default function BoardPage() {
       if (isSavingRef.current) return;
       isSavingRef.current = true;
 
-      if (!editingCardId || !board) {
-        isSavingRef.current = false;
-        return;
-      }
+      try {
+        if (!editingCardId || !board) return;
 
-      // Find the card being edited to determine its type
-      const card = board.cards.find((c) => c.id === editingCardId);
-      if (!card) {
-        isSavingRef.current = false;
-        return;
-      }
+        // Find the card being edited to determine its type
+        const card = board.cards.find((c) => c.id === editingCardId);
+        if (!card) return;
 
-      const isTemporary = tempCardIds.has(editingCardId);
+        const isTemporary = tempCardIds.has(editingCardId);
+        const isEmpty = isTiptapContentEmpty(content);
 
-      // Check if content is empty (both TEXT and LINK use Tiptap now)
-      const isEmpty = isTiptapContentEmpty(content);
-
-      // Handle temporary cards
-      if (isTemporary) {
-        if (isEmpty) {
-          // Remove temporary card silently (no backend call, no warning)
-          setBoard((prev) => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              cards: prev.cards.filter((c) => c.id !== editingCardId),
-            };
-          });
-          setTempCardIds((prev) => {
-            const newSet = new Set(prev);
-            newSet.delete(editingCardId);
-            return newSet;
-          });
-          setEditingCardId(null);
-          isSavingRef.current = false;
-          return;
-        }
-
-        // Save temporary card to backend
-        try {
-          let contentJson;
-          if (card.type === CardType.LINK) {
-            // Extract URL from Tiptap JSON
-            let url = extractTextFromTiptap(content);
-            if (!url.startsWith("http://") && !url.startsWith("https://")) {
-              url = "https://" + url;
-            }
-            try {
-              new URL(url);
-            } catch {
-              message.error("Please enter a valid URL");
-              isSavingRef.current = false;
-              return;
-            }
-            contentJson = JSON.stringify({ url });
-          } else {
-            // TEXT card
-            try {
-              const tiptapJson = JSON.parse(content);
-              contentJson = JSON.stringify({ richText: tiptapJson });
-            } catch {
-              contentJson = JSON.stringify({ richText: content });
-            }
-          }
-
-          const res = await fetch(`/api/boards/${boardId}/cards`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              type: card.type,
-              content: contentJson,
-              positionX: card.positionX,
-              positionY: card.positionY,
-              width: card.width,
-            }),
-          });
-
-          if (res.ok) {
-            message.success("Note created successfully");
-            // Remove temporary card
+        // Handle temporary cards
+        if (isTemporary) {
+          if (isEmpty) {
+            // Remove temporary card silently (no backend call, no warning)
             setBoard((prev) => {
               if (!prev) return prev;
               return {
@@ -370,24 +351,58 @@ export default function BoardPage() {
               return newSet;
             });
             setEditingCardId(null);
-            // Fetch to get the real card from backend
-            fetchBoard();
+            return;
+          }
+
+          // Save temporary card to backend
+          const cardConfig = getCardTypeConfig(card.type);
+          const validation = cardConfig.validateContent(content);
+          if (!validation.valid) {
+            message.error(validation.error || "Invalid content");
+            return;
+          }
+
+          const contentJson = cardConfig.formatForSave(content);
+          const res = await fetch(`/api/boards/${boardId}/cards`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: card.type,
+              content: contentJson,
+              positionX: card.positionX,
+              positionY: card.positionY,
+              width: card.width,
+            }),
+          });
+
+          if (res.ok) {
+            const newCard = await res.json();
+            message.success(cardConfig.messages.createSuccess);
+            setBoard((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                cards: prev.cards.map((c) =>
+                  c.id === editingCardId ? newCard : c,
+                ),
+              };
+            });
+            setTempCardIds((prev) => {
+              const newSet = new Set(prev);
+              newSet.delete(editingCardId);
+              return newSet;
+            });
+            setEditingCardId(null);
           } else {
             const error = await res.json();
-            message.error(error.error || "Failed to create note");
+            message.error(error.error || cardConfig.messages.createError);
           }
-        } catch (error) {
-          message.error("Failed to create note");
-          console.error(error);
+          return;
         }
-        isSavingRef.current = false;
-        return;
-      }
 
-      // Handle existing cards (non-temporary)
-      if (isEmpty) {
-        // Delete existing empty card
-        try {
+        // Handle existing cards (non-temporary)
+        if (isEmpty) {
+          // Delete existing empty card
           const res = await fetch(`/api/cards/${editingCardId}`, {
             method: "DELETE",
           });
@@ -405,70 +420,48 @@ export default function BoardPage() {
           } else {
             message.error("Failed to delete card");
           }
-        } catch (error) {
-          message.error("Failed to delete card");
-          console.error(error);
-        }
-        isSavingRef.current = false;
-        return;
-      }
-
-      try {
-        let contentJson;
-        let successMessage;
-
-        if (card.type === CardType.LINK) {
-          // Extract URL from Tiptap JSON and validate
-          let url = extractTextFromTiptap(content);
-          if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            url = "https://" + url;
-          }
-
-          try {
-            new URL(url);
-          } catch {
-            message.error("Please enter a valid URL");
-            isSavingRef.current = false;
-            return;
-          }
-
-          contentJson = JSON.stringify({ url });
-          successMessage = "Link updated successfully";
-        } else {
-          // TEXT card
-          // content is already a JSON string from Tiptap, so parse it first
-          try {
-            const tiptapJson = JSON.parse(content);
-            contentJson = JSON.stringify({ richText: tiptapJson });
-          } catch {
-            // Fallback for plain text
-            contentJson = JSON.stringify({ richText: content });
-          }
-          successMessage = "Note updated successfully";
+          return;
         }
 
+        // Update existing card
+        const cardConfig = getCardTypeConfig(card.type);
+        const validation = cardConfig.validateContent(content);
+        if (!validation.valid) {
+          message.error(validation.error || "Invalid content");
+          return;
+        }
+
+        const contentJson = cardConfig.formatForSave(content);
         const res = await fetch(`/api/cards/${editingCardId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            content: contentJson,
-          }),
+          body: JSON.stringify({ content: contentJson }),
         });
 
         if (res.ok) {
-          message.success(successMessage);
+          const updatedCard = await res.json();
+          message.success(cardConfig.messages.updateSuccess);
+          setBoard((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              cards: prev.cards.map((c) =>
+                c.id === editingCardId ? updatedCard : c,
+              ),
+            };
+          });
           setEditingCardId(null);
-          fetchBoard();
         } else {
           const error = await res.json();
-          message.error(error.error || "Failed to update card");
+          message.error(error.error || cardConfig.messages.updateError);
         }
       } catch (error) {
-        message.error("Failed to update card");
+        message.error("Operation failed");
         console.error(error);
+      } finally {
+        // Guaranteed reset - prevents stuck state
+        isSavingRef.current = false;
       }
-
-      isSavingRef.current = false;
     },
     [editingCardId, board, tempCardIds, boardId, message],
   );
@@ -533,6 +526,91 @@ export default function BoardPage() {
     [editingCardId, tempCardIds, board, message],
   );
 
+  // Handle card deletion (drag to trash)
+  const handleDeleteCard = useCallback(
+    async (cardId: string) => {
+      const currentBoard = boardRef.current;
+      if (!currentBoard) return;
+
+      const card = currentBoard.cards.find((c) => c.id === cardId);
+      if (!card) return;
+
+      // Check if it's a temporary card (not saved to backend yet)
+      const isTemporary = tempCardIds.has(cardId);
+
+      // Optimistic update - remove from UI immediately
+      setBoard((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          cards: prev.cards.filter((c) => c.id !== cardId),
+        };
+      });
+
+      // Clear editing state if this card was being edited
+      if (editingCardId === cardId) {
+        setEditingCardId(null);
+      }
+
+      if (isTemporary) {
+        // Just remove from temp tracking, no backend call needed
+        setTempCardIds((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(cardId);
+          return newSet;
+        });
+        message.success("Card deleted");
+        return;
+      }
+
+      // Delete from backend
+      try {
+        const res = await fetch(`/api/cards/${cardId}`, {
+          method: "DELETE",
+        });
+
+        if (res.ok) {
+          message.success("Card deleted");
+        } else {
+          // Revert on error - re-fetch board to restore state
+          message.error("Failed to delete card");
+          fetchBoard();
+        }
+      } catch (error) {
+        console.error("Failed to delete card:", error);
+        message.error("Failed to delete card");
+        fetchBoard();
+      }
+    },
+    [tempCardIds, editingCardId, message],
+  );
+
+  // Memoized callback maps for stable references - only recreate when card IDs change
+  const cardCallbacks = useMemo(() => {
+    if (!board) return {};
+
+    const callbacks: Record<
+      string,
+      {
+        onClick: () => void;
+        onStartEdit: () => void;
+      }
+    > = {};
+
+    board.cards.forEach((card) => {
+      callbacks[card.id] = {
+        onClick: () => bringCardToTop(card.id),
+        onStartEdit: () => handleStartEdit(card.id),
+      };
+    });
+
+    return callbacks;
+  }, [
+    board?.cards.map((c) => c.id).join(","),
+    bringCardToTop,
+    handleStartEdit,
+  ]);
+
   if (fetchLoading) {
     return (
       <ErrorBoundary>
@@ -566,11 +644,21 @@ export default function BoardPage() {
 
   return (
     <ErrorBoundary>
-      <CanvasLayout boardName={board.name} onAddCard={handleAddCard}>
+      <CanvasLayout
+        boardName={board.name}
+        project={board.project}
+        folder={board.folder}
+        onAddCard={handleAddCard}
+        onCreateCardAtPosition={handleCreateCardAtPosition}
+        onCardMove={handleCardMove}
+        onDeleteCard={handleDeleteCard}
+        scale={canvasScale}
+      >
         {/* Canvas */}
-        <BoardCanvas onCardMove={handleCardMove}>
+        <BoardCanvas onScaleChange={setCanvasScale}>
           {board.cards.map((card) => {
             const isCardEditing = editingCardId === card.id;
+            const callbacks = cardCallbacks[card.id];
 
             return (
               <CanvasCard
@@ -581,7 +669,7 @@ export default function BoardPage() {
                 width={card.width}
                 zIndex={card.zIndex}
                 isEditing={isCardEditing}
-                onClick={() => bringCardToTop(card.id)}
+                onClick={callbacks?.onClick}
               >
                 {card.type === CardType.TEXT && (
                   <TextCard
@@ -591,7 +679,7 @@ export default function BoardPage() {
                     isEditing={isCardEditing}
                     onEditSave={handleEditSave}
                     onEditCancel={handleEditCancel}
-                    onStartEdit={() => handleStartEdit(card.id)}
+                    onStartEdit={callbacks?.onStartEdit}
                   />
                 )}
                 {card.type === CardType.LINK && (
@@ -601,7 +689,7 @@ export default function BoardPage() {
                     isEditing={isCardEditing}
                     onEditSave={handleEditSave}
                     onEditCancel={handleEditCancel}
-                    onStartEdit={() => handleStartEdit(card.id)}
+                    onStartEdit={callbacks?.onStartEdit}
                   />
                 )}
               </CanvasCard>

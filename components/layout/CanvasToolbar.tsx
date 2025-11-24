@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Tooltip } from "antd";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import {
   FileTextOutlined,
   LinkOutlined,
@@ -18,21 +19,94 @@ interface CanvasToolbarProps {
   onAddCard?: (type: string) => void;
 }
 
-interface ToolButtonProps {
+interface DraggableToolButtonProps {
   icon: React.ReactNode;
   label: string;
   type: string;
+  active?: boolean;
+  draggable?: boolean;
+}
+
+function DraggableToolButton({
+  icon,
+  label,
+  type,
+  active = false,
+  draggable = true,
+}: DraggableToolButtonProps) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `toolbar-${type}`,
+    data: {
+      type: "toolbar-item",
+      cardType: type,
+    },
+    disabled: !draggable,
+  });
+
+  return (
+    <Tooltip
+      title={draggable ? `Drag to create ${label}` : label}
+      placement="bottom"
+    >
+      <div
+        ref={setNodeRef}
+        {...listeners}
+        {...attributes}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          cursor: draggable ? "grab" : "pointer",
+          padding: "6px 8.75px",
+          borderRadius: 3,
+          background: active
+            ? "#ebedee"
+            : isHovered
+              ? "#f0f0f0"
+              : "transparent",
+          transform:
+            isHovered && !isDragging ? "translateY(-1px)" : "translateY(0)",
+          transition: "all 0.15s ease",
+          opacity: isDragging ? 0.5 : 1,
+          touchAction: "none",
+        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <div
+          style={{
+            fontSize: 24,
+            color: "#323b4a",
+            marginBottom: 4,
+          }}
+        >
+          {icon}
+        </div>
+        <span
+          style={{
+            fontSize: 9,
+            color: "#323b4a",
+            fontFamily: "Inter, sans-serif",
+          }}
+        >
+          {label}
+        </span>
+      </div>
+    </Tooltip>
+  );
+}
+
+// Non-draggable tool button for items that don't create cards
+interface ToolButtonProps {
+  icon: React.ReactNode;
+  label: string;
   onClick?: () => void;
   active?: boolean;
 }
 
-function ToolButton({
-  icon,
-  label,
-  type,
-  onClick,
-  active = false,
-}: ToolButtonProps) {
+function ToolButton({ icon, label, onClick, active = false }: ToolButtonProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -80,13 +154,67 @@ function ToolButton({
   );
 }
 
-export default function CanvasToolbar({ onAddCard }: CanvasToolbarProps) {
-  const handleAddCard = (type: string) => {
-    if (onAddCard) {
-      onAddCard(type);
-    }
-  };
+// Droppable trash button for deleting cards
+function DroppableTrashButton() {
+  const [isHovered, setIsHovered] = useState(false);
 
+  const { setNodeRef, isOver } = useDroppable({
+    id: "trash-droppable",
+    data: {
+      type: "trash",
+    },
+  });
+
+  return (
+    <Tooltip title={isOver ? "Drop to delete" : "Trash"} placement="bottom">
+      <div
+        ref={setNodeRef}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          cursor: "pointer",
+          padding: "6px 8.75px",
+          borderRadius: 3,
+          background: isOver
+            ? "#ffebee"
+            : isHovered
+              ? "#f0f0f0"
+              : "transparent",
+          transform: isOver || isHovered ? "translateY(-1px)" : "translateY(0)",
+          transition: "all 0.15s ease",
+          outline: isOver ? "2px dashed #f44336" : "none",
+          outlineOffset: "-2px",
+        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <div
+          style={{
+            fontSize: 24,
+            color: isOver ? "#f44336" : "#323b4a",
+            marginBottom: 4,
+            transition: "color 0.15s ease",
+          }}
+        >
+          <DeleteOutlined />
+        </div>
+        <span
+          style={{
+            fontSize: 9,
+            color: isOver ? "#f44336" : "#323b4a",
+            fontFamily: "Inter, sans-serif",
+            transition: "color 0.15s ease",
+          }}
+        >
+          Trash
+        </span>
+      </div>
+    </Tooltip>
+  );
+}
+
+export default function CanvasToolbar({ onAddCard }: CanvasToolbarProps) {
   return (
     <div
       style={{
@@ -103,36 +231,31 @@ export default function CanvasToolbar({ onAddCard }: CanvasToolbarProps) {
         zIndex: 1000,
       }}
     >
-      <ToolButton
+      {/* Draggable card-creating tools */}
+      <DraggableToolButton
         icon={<FileTextOutlined />}
         label="Note"
         type="TEXT"
-        onClick={() => handleAddCard("TEXT")}
       />
-      <ToolButton
-        icon={<LinkOutlined />}
-        label="Link"
-        type="LINK"
-        onClick={() => handleAddCard("LINK")}
-      />
-      <ToolButton
+      <DraggableToolButton icon={<LinkOutlined />} label="Link" type="LINK" />
+      <DraggableToolButton
         icon={<CheckSquareOutlined />}
         label="To-do"
         type="TODO"
-        onClick={() => handleAddCard("TODO")}
+        draggable={false}
       />
-      <ToolButton
+      <DraggableToolButton
         icon={<LineOutlined />}
         label="Line"
         type="LINE"
-        onClick={() => handleAddCard("LINE")}
+        draggable={false}
       />
-      <ToolButton
+      <DraggableToolButton
         icon={<AppstoreOutlined />}
         label="Board"
         type="SUBBOARD"
-        onClick={() => handleAddCard("SUBBOARD")}
         active
+        draggable={false}
       />
 
       <div
@@ -144,30 +267,15 @@ export default function CanvasToolbar({ onAddCard }: CanvasToolbarProps) {
         }}
       />
 
-      <ToolButton
+      <DraggableToolButton
         icon={<PictureOutlined />}
         label="Add image"
         type="IMAGE"
-        onClick={() => handleAddCard("IMAGE")}
+        draggable={false}
       />
-      <ToolButton
-        icon={<UploadOutlined />}
-        label="Upload"
-        type="UPLOAD"
-        onClick={() => handleAddCard("UPLOAD")}
-      />
-      <ToolButton
-        icon={<EditOutlined />}
-        label="Draw"
-        type="DRAW"
-        onClick={() => handleAddCard("DRAW")}
-      />
-      <ToolButton
-        icon={<DeleteOutlined />}
-        label="Trash"
-        type="TRASH"
-        onClick={() => handleAddCard("TRASH")}
-      />
+      <ToolButton icon={<UploadOutlined />} label="Upload" />
+      <ToolButton icon={<EditOutlined />} label="Draw" />
+      <DroppableTrashButton />
     </div>
   );
 }
