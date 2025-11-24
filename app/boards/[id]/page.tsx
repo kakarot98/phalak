@@ -355,13 +355,20 @@ export default function BoardPage() {
           });
 
           if (res.ok) {
-            message.success("Note created successfully");
-            // Remove temporary card
+            const newCard = await res.json();
+            message.success(
+              card.type === CardType.LINK
+                ? "Link created successfully"
+                : "Note created successfully",
+            );
+            // Replace temporary card with real card from API response
             setBoard((prev) => {
               if (!prev) return prev;
               return {
                 ...prev,
-                cards: prev.cards.filter((c) => c.id !== editingCardId),
+                cards: prev.cards.map((c) =>
+                  c.id === editingCardId ? newCard : c,
+                ),
               };
             });
             setTempCardIds((prev) => {
@@ -370,8 +377,6 @@ export default function BoardPage() {
               return newSet;
             });
             setEditingCardId(null);
-            // Fetch to get the real card from backend
-            fetchBoard();
           } else {
             const error = await res.json();
             message.error(error.error || "Failed to create note");
@@ -456,9 +461,19 @@ export default function BoardPage() {
         });
 
         if (res.ok) {
+          const updatedCard = await res.json();
           message.success(successMessage);
+          // Update the card in state directly
+          setBoard((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              cards: prev.cards.map((c) =>
+                c.id === editingCardId ? updatedCard : c,
+              ),
+            };
+          });
           setEditingCardId(null);
-          fetchBoard();
         } else {
           const error = await res.json();
           message.error(error.error || "Failed to update card");
