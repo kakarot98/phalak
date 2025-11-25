@@ -13,7 +13,11 @@ import {
   PointerSensor,
 } from "@dnd-kit/core";
 import { Card } from "antd";
-import { FileTextOutlined, LinkOutlined } from "@ant-design/icons";
+import {
+  FileTextOutlined,
+  LinkOutlined,
+  FileAddOutlined,
+} from "@ant-design/icons";
 import CanvasHeader from "./CanvasHeader";
 import CanvasToolbar from "./CanvasToolbar";
 
@@ -36,11 +40,13 @@ interface CanvasLayoutProps {
 function GhostCard({ type }: { type: string }) {
   const icons: Record<string, React.ReactNode> = {
     TEXT: <FileTextOutlined style={{ fontSize: 20, color: "#666" }} />,
+    PAGE: <FileAddOutlined style={{ fontSize: 20, color: "#666" }} />,
     LINK: <LinkOutlined style={{ fontSize: 20, color: "#1890ff" }} />,
   };
 
   const labels: Record<string, string> = {
     TEXT: "New Note",
+    PAGE: "New Page",
     LINK: "New Link",
   };
 

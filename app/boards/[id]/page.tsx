@@ -8,13 +8,14 @@ import CanvasLayout from "@/components/layout/CanvasLayout";
 import BoardCanvas from "@/components/canvas/BoardCanvas";
 import CanvasCard from "@/components/canvas/CanvasCard";
 import TextCard from "@/components/cards/TextCard";
+import PageCard from "@/components/cards/PageCard";
 import LinkCard from "@/components/cards/LinkCard";
 import LoadingState from "@/components/ui/LoadingState";
 import ErrorBoundary from "@/components/error/ErrorBoundary";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { calculateNewZIndex } from "@/lib/collision";
 import { Card, CardType } from "@/types/card";
-import { getCardTypeConfig, isTiptapContentEmpty } from "@/lib/cardTypes";
+import { getCardTypeConfig } from "@/lib/cardTypes";
 
 interface Board {
   id: string;
@@ -93,7 +94,11 @@ export default function BoardPage() {
 
   const handleAddCard = useCallback(
     (type: string) => {
-      if (type === CardType.TEXT || type === CardType.LINK) {
+      if (
+        type === CardType.TEXT ||
+        type === CardType.PAGE ||
+        type === CardType.LINK
+      ) {
         // Create temporary card for direct inline editing
         const tempId = `temp-${Date.now()}`;
 
@@ -143,7 +148,11 @@ export default function BoardPage() {
   // Create card at specific position (for drag-drop from toolbar)
   const handleCreateCardAtPosition = useCallback(
     (type: string, x: number, y: number) => {
-      if (type === CardType.TEXT || type === CardType.LINK) {
+      if (
+        type === CardType.TEXT ||
+        type === CardType.PAGE ||
+        type === CardType.LINK
+      ) {
         // Create temporary card for direct inline editing
         const tempId = `temp-${Date.now()}`;
 
@@ -332,7 +341,9 @@ export default function BoardPage() {
         if (!card) return;
 
         const isTemporary = tempCardIds.has(editingCardId);
-        const isEmpty = isTiptapContentEmpty(content);
+        // Use card type's own isEmpty check for proper validation
+        const cardConfig = getCardTypeConfig(card.type);
+        const isEmpty = cardConfig.isEmpty(content);
 
         // Handle temporary cards
         if (isTemporary) {
@@ -355,7 +366,6 @@ export default function BoardPage() {
           }
 
           // Save temporary card to backend
-          const cardConfig = getCardTypeConfig(card.type);
           const validation = cardConfig.validateContent(content);
           if (!validation.valid) {
             message.error(validation.error || "Invalid content");
@@ -424,7 +434,6 @@ export default function BoardPage() {
         }
 
         // Update existing card
-        const cardConfig = getCardTypeConfig(card.type);
         const validation = cardConfig.validateContent(content);
         if (!validation.valid) {
           message.error(validation.error || "Invalid content");
@@ -475,8 +484,9 @@ export default function BoardPage() {
 
       const isTemporary = tempCardIds.has(editingCardId);
 
-      // Check if current editing content is empty (both TEXT and LINK use Tiptap now)
-      const isEmpty = isTiptapContentEmpty(content);
+      // Use card type's own isEmpty check for proper validation
+      const cardConfig = getCardTypeConfig(card.type);
+      const isEmpty = cardConfig.isEmpty(content);
 
       // If empty, delete the card
       if (isEmpty) {
@@ -518,12 +528,72 @@ export default function BoardPage() {
             console.error(error);
           }
         }
+      } else if (isTemporary) {
+        // Temporary card with content - save it to backend
+        const validation = cardConfig.validateContent(content);
+        if (!validation.valid) {
+          // Invalid content - remove the temp card
+          setBoard((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              cards: prev.cards.filter((c) => c.id !== editingCardId),
+            };
+          });
+          setTempCardIds((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(editingCardId);
+            return newSet;
+          });
+        } else {
+          // Valid content - save to backend
+          try {
+            const contentJson = cardConfig.formatForSave(content);
+            const res = await fetch(`/api/boards/${boardId}/cards`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: card.type,
+                content: contentJson,
+                positionX: card.positionX,
+                positionY: card.positionY,
+                width: card.width,
+              }),
+            });
+
+            if (res.ok) {
+              const newCard = await res.json();
+              message.success(cardConfig.messages.createSuccess);
+              setBoard((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  cards: prev.cards.map((c) =>
+                    c.id === editingCardId ? newCard : c,
+                  ),
+                };
+              });
+              setTempCardIds((prev) => {
+                const newSet = new Set(prev);
+                newSet.delete(editingCardId);
+                return newSet;
+              });
+            } else {
+              const error = await res.json();
+              message.error(error.error || cardConfig.messages.createError);
+            }
+          } catch (error) {
+            message.error("Failed to save card");
+            console.error(error);
+          }
+        }
       }
+      // For existing cards with content, just exit editing mode (no changes needed)
 
       // Clear editing state
       setEditingCardId(null);
     },
-    [editingCardId, tempCardIds, board, message],
+    [editingCardId, tempCardIds, board, boardId, message],
   );
 
   // Handle card deletion (drag to trash)
@@ -673,6 +743,17 @@ export default function BoardPage() {
               >
                 {card.type === CardType.TEXT && (
                   <TextCard
+                    title={card.title}
+                    content={card.content}
+                    color={card.color}
+                    isEditing={isCardEditing}
+                    onEditSave={handleEditSave}
+                    onEditCancel={handleEditCancel}
+                    onStartEdit={callbacks?.onStartEdit}
+                  />
+                )}
+                {card.type === CardType.PAGE && (
+                  <PageCard
                     title={card.title}
                     content={card.content}
                     color={card.color}

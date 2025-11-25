@@ -9,6 +9,7 @@ import type { JSONContent } from "@tiptap/core";
 
 export enum CardType {
   TEXT = "TEXT",
+  PAGE = "PAGE",
   TODO = "TODO",
   IMAGE = "IMAGE",
   LINK = "LINK",
@@ -27,6 +28,15 @@ export enum CardType {
 export interface TextCardContent {
   richText: string | JSONContent; // Plain text (legacy) or Tiptap JSON
   source?: string; // Optional reference/citation
+}
+
+/**
+ * PAGE card content
+ * A document-style card with title and rich text description
+ */
+export interface PageCardContent {
+  title: string; // Single line title
+  description: JSONContent; // Tiptap rich text content
 }
 
 /**
@@ -91,6 +101,7 @@ export interface SubBoardCardContent {
 
 export type CardContentData =
   | TextCardContent
+  | PageCardContent
   | TodoCardContent
   | ImageCardContent
   | LinkCardContent
@@ -129,6 +140,10 @@ export interface Card {
 
 export function isTextCard(card: Card): card is Card & { content: string } {
   return card.type === CardType.TEXT;
+}
+
+export function isPageCard(card: Card): card is Card & { content: string } {
+  return card.type === CardType.PAGE;
 }
 
 export function isTodoCard(card: Card): card is Card & { content: string } {

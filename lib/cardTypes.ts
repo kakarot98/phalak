@@ -134,6 +134,68 @@ const linkCardConfig: CardTypeConfig = {
 };
 
 /**
+ * PAGE Card Configuration
+ */
+const pageCardConfig: CardTypeConfig = {
+  type: CardType.PAGE,
+  initialContent: () =>
+    JSON.stringify({
+      title: "",
+      description: { type: "doc", content: [] },
+    }),
+  validateContent: (content: string) => {
+    try {
+      const parsed = JSON.parse(content);
+      const titleEmpty = !parsed.title || parsed.title.trim() === "";
+      const descriptionEmpty = isTiptapContentEmpty(
+        JSON.stringify(parsed.description),
+      );
+
+      // Valid if at least ONE field has content
+      if (titleEmpty && descriptionEmpty) {
+        return { valid: false, error: "Page cannot be empty" };
+      }
+
+      return { valid: true };
+    } catch {
+      return { valid: false, error: "Invalid page content" };
+    }
+  },
+  formatForSave: (content: string) => {
+    try {
+      const parsed = JSON.parse(content);
+      return JSON.stringify({
+        title: parsed.title || "",
+        description: parsed.description || { type: "doc", content: [] },
+      });
+    } catch {
+      return JSON.stringify({
+        title: "",
+        description: { type: "doc", content: [] },
+      });
+    }
+  },
+  isEmpty: (content: string) => {
+    try {
+      const parsed = JSON.parse(content);
+      const titleEmpty = !parsed.title || parsed.title.trim() === "";
+      const descriptionEmpty = isTiptapContentEmpty(
+        JSON.stringify(parsed.description),
+      );
+      return titleEmpty && descriptionEmpty;
+    } catch {
+      return true;
+    }
+  },
+  messages: {
+    createSuccess: "Page created successfully",
+    updateSuccess: "Page updated successfully",
+    createError: "Failed to create page",
+    updateError: "Failed to update page",
+  },
+};
+
+/**
  * Placeholder config for card types not yet fully implemented
  * These will throw an error if used, prompting implementation
  */
@@ -157,6 +219,7 @@ const createPlaceholderConfig = (type: CardType): CardTypeConfig => ({
  */
 export const cardTypeRegistry: Record<CardType, CardTypeConfig> = {
   [CardType.TEXT]: textCardConfig,
+  [CardType.PAGE]: pageCardConfig,
   [CardType.LINK]: linkCardConfig,
   // Future card types (placeholder configs):
   [CardType.TODO]: createPlaceholderConfig(CardType.TODO),

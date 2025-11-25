@@ -13,6 +13,7 @@ import {
   UploadOutlined,
   EditOutlined,
   DeleteOutlined,
+  FileAddOutlined,
 } from "@ant-design/icons";
 
 interface CanvasToolbarProps {
@@ -236,6 +237,11 @@ export default function CanvasToolbar({ onAddCard }: CanvasToolbarProps) {
         icon={<FileTextOutlined />}
         label="Note"
         type="TEXT"
+      />
+      <DraggableToolButton
+        icon={<FileAddOutlined />}
+        label="Page"
+        type="PAGE"
       />
       <DraggableToolButton icon={<LinkOutlined />} label="Link" type="LINK" />
       <DraggableToolButton
